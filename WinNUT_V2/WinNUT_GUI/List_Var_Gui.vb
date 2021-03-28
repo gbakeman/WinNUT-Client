@@ -12,7 +12,7 @@ Imports System.Threading
 Imports System.ComponentModel
 
 Public Class List_Var_Gui
-    Private List_Var_Datas As List(Of UPS_List_Datas)
+    Private List_Var_Datas As Dictionary(Of String, String)
     Private LogFile As Logger
     Private UPS_Name = WinNUT.Nut_Config.UPSName
     Private Sub List_Var_Gui_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -27,12 +27,12 @@ Public Class List_Var_Gui
     Private Sub PopulateTreeView()
         Dim action As Action
         LogFile.LogTracing("Populate TreeView", LogLvl.LOG_DEBUG, Me)
-        List_Var_Datas = WinNUT.UPS_Device.GetUPS_ListVar()
+        ' List_Var_Datas = WinNUT.UPS_Device.GetUPS_ListVar()
 
-        If List_Var_Datas Is Nothing Then
-            LogFile.LogTracing("ListUPSVars return Nothing Value", LogLvl.LOG_DEBUG, Me)
-            Return
-        End If
+        'If List_Var_Datas Is Nothing Then
+        '    LogFile.LogTracing("ListUPSVars return Nothing Value", LogLvl.LOG_DEBUG, Me)
+        '    Return
+        'End If
 
         action = Sub() TView_UPSVar.Nodes.Clear()
         TView_UPSVar.Invoke(action)
@@ -43,7 +43,7 @@ Public Class List_Var_Gui
         For Each UPS_Var In List_Var_Datas
             LastNode = TView_UPSVar.Nodes(0)
             Dim FullPathNode = String.Empty
-            For Each SubPath In (Strings.Split(UPS_Var.VarKey, "."))
+            For Each SubPath In Split(UPS_Var.Key, ".")
                 FullPathNode += SubPath & "."
                 Dim Nodes = TView_UPSVar.Nodes.Find(FullPathNode, True)
                 If Nodes.Length = 0 Then
@@ -88,7 +88,7 @@ Public Class List_Var_Gui
                 If SelectedNode.Parent.Text <> Me.UPS_Name And SelectedNode.Nodes.Count = 0 Then
                     Dim VarName = Strings.Replace(TView_UPSVar.SelectedNode.FullPath, Me.UPS_Name & ".", "")
                     LogFile.LogTracing("Update {VarName}", LogLvl.LOG_DEBUG, Me)
-                    Lbl_V_Value.Text = WinNUT.UPS_Device.GetUPSVar(VarName, Me.UPS_Name)
+                    Lbl_V_Value.Text = WinNUT.UPS_Device.NDNUPS.GetVariables()(VarName) ' WinNUT.UPS_Device.GetUPSVar(VarName, Me.UPS_Name)
                 End If
             End If
         End If
@@ -120,11 +120,11 @@ Public Class List_Var_Gui
                                                                 Return False
                                                             End If
                                                         End Function
-        If Not SelectedChild = UPSName And List_Var_Datas.FindIndex(FindChild) <> -1 Then
+        If Not SelectedChild = UPSName And List_Var_Datas.ContainsKey(SelectedChild) Then
             LogFile.LogTracing("Select {List_Var_Datas.Item(index).VarKey} Node", LogLvl.LOG_DEBUG, Me)
-            Lbl_N_Value.Text = List_Var_Datas.Item(index).VarKey
-            Lbl_V_Value.Text = List_Var_Datas.Item(index).VarValue
-            Lbl_D_Value.Text = List_Var_Datas.Item(index).VarDesc
+            Lbl_N_Value.Text = SelectedChild
+            Lbl_V_Value.Text = List_Var_Datas(SelectedChild)
+            Lbl_D_Value.Text = "Description: Not implemented"
         Else
             Lbl_N_Value.Text = ""
             Lbl_V_Value.Text = ""
@@ -139,7 +139,7 @@ Public Class List_Var_Gui
             ToClipBoard = WinNUT_Params.Arr_Reg_Key.Item("UPSName") & " (" & .Mfr & "/" & .Model & "/" & .Firmware & ")" & vbNewLine
         End With
         For Each LDatas In List_Var_Datas
-            ToClipBoard &= LDatas.VarKey & " (" & LDatas.VarDesc & ") : " & LDatas.VarValue & vbNewLine
+            ToClipBoard &= LDatas.Key & " (Description goes here) : " & LDatas.Value & vbNewLine
         Next
         My.Computer.Clipboard.SetText(ToClipboard)
     End Sub

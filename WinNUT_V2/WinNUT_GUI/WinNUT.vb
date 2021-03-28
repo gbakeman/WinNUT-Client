@@ -8,14 +8,18 @@
 ' This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY
 
 Imports WinNUT_Client_Common
+Imports NUTDotNetClient
 
 Public Class WinNUT
     'Logger Class Object
     Public Shared WithEvents LogFile As New Logger(False, 0)
 
     'Object for UPS management
+    ' Testing using only NDN client here:
     Public WithEvents UPS_Device As UPS_Device
-    Public Nut_Socket As Nut_Socket
+    'Public Nut_Socket As Nut_Socket
+    Private NDNClient As NUTClient
+
     Public Nut_Config As New Nut_Parameter
     Public Device_Data As UPS_Datas
     Private Polling_Interval As Integer
@@ -175,7 +179,6 @@ Public Class WinNUT
             LogFile.LogTracing("Windows 10 Toast Notification Not Available. Too Old Windows Version", LogLvl.LOG_DEBUG, Me)
         End If
 
-        'Init Connexion to UPS
         With Me.Nut_Config
             .Host = WinNUT_Params.Arr_Reg_Key.Item("ServerAddress")
             .Port = WinNUT_Params.Arr_Reg_Key.Item("Port")
@@ -185,10 +188,14 @@ Public Class WinNUT
             .AutoReconnect = WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect")
         End With
 
+        ' Init connection to NUT server
+
         'Nut_Socket = New Nut_Comm(Me.Nut_Parameter)
         'UPS_Device = New UPS_Device(Nut_Socket, WinNUT_Params.Arr_Reg_Key.Item("UPSName"), WinNUT.LogFile)
-        UPS_Device = New UPS_Device(Me.Nut_Config, WinNUT.LogFile)
-        Nut_Socket = UPS_Device.Nut_Socket
+        ' UPS_Device = New UPS_Device(Me.Nut_Config, WinNUT.LogFile)
+        ' Nut_Socket = UPS_Device.Nut_Socket
+        NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
+
         Me.Polling_Interval = WinNUT_Params.Arr_Reg_Key.Item("Delay")
         With Me.Update_Data
             .Interval = Me.Polling_Interval
@@ -292,8 +299,10 @@ Public Class WinNUT
             HasFocus = False
         End If
         'ToastPopup.CreateToastCollection()
+
+        ' Iniate connection to server.
         LogFile.LogTracing("Try to connect to UPS", LogLvl.LOG_DEBUG, Me)
-        UPS_Connect()
+        Server_Connect()
     End Sub
 
     Private Sub SystemEvents_PowerModeChanged(ByVal sender As Object, ByVal e As Microsoft.Win32.PowerModeChangedEventArgs)
@@ -302,7 +311,7 @@ Public Class WinNUT
                 LogFile.LogTracing("Restarting WinNUT after waking up from Windows", LogLvl.LOG_NOTICE, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_EXITSLEEP))
                 If WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect") = True Then
                     'UPS_Device.Connect()
-                    UPS_Connect()
+                    Server_Connect()
                 End If
             Case Microsoft.Win32.PowerModes.Suspend
                 LogFile.LogTracing("Windows standby, WinNUT will disconnect", LogLvl.LOG_NOTICE, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_GOTOSLEEP))
@@ -310,22 +319,30 @@ Public Class WinNUT
         End Select
     End Sub
 
-    Private Sub UPS_Connect()
+    ' Establish connection to the NUT server and begin monitoring a UPS.
+    Private Sub Server_Connect()
         LogFile.LogTracing("Connect To Nut Server", LogLvl.LOG_DEBUG, Me)
-        UPS_Device.Connect_UPS()
         Dim Host = Me.Nut_Config.Host
         Dim Port = Me.Nut_Config.Port
         Dim Login = Me.Nut_Config.Login
         Dim Password = Me.Nut_Config.Password
-        If Not (Me.UPS_Device.IsConnected And UPS_Device.IsAuthenticated) Then
-            LogFile.LogTracing("Error When Connection to Nut Host.", LogLvl.LOG_ERROR, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CON_FAILED), Host, Port, "Connection Error"))
-        Else
+        ' UPS_Device.Connect_UPS()
+
+        Try
+            If NDNClient.IsConnected Then
+                NDNClient.Disconnect()
+            End If
+            NDNClient.Connect()
+            NDNClient.SetUsername(Login)
+            NDNClient.SetPassword(Password)
             LogFile.LogTracing("Connection to Nut Host Established", LogLvl.LOG_NOTICE, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CONNECTED), Host, Port))
             Update_Data.Start()
             AddHandler Update_Data.Tick, AddressOf Retrieve_UPS_Datas
             Me.Device_Data = UPS_Device.Retrieve_UPS_Datas()
             RaiseEvent Data_Updated()
-        End If
+        Catch ex As Exception
+            LogFile.LogTracing("Error when connecting to NUT host: " + ex.Message, LogLvl.LOG_ERROR, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CON_FAILED), Host, Port, "Connection Error"))
+        End Try
     End Sub
 
     Private Sub Retrieve_UPS_Datas(sender As Object, e As EventArgs)
@@ -368,7 +385,10 @@ Public Class WinNUT
             e.Cancel = True
         Else
             LogFile.LogTracing("Init Disconnecting Before Close WinNut", LogLvl.LOG_DEBUG, Me)
-            Nut_Socket.Disconnect(True)
+            ' Nut_Socket.Disconnect(True)
+            If NDNClient.IsConnected Then
+                NDNClient.Disconnect()
+            End If
             LogFile.LogTracing("WinNut Is now Closed", LogLvl.LOG_DEBUG, Me)
             RemoveHandler Microsoft.Win32.SystemEvents.PowerModeChanged, AddressOf SystemEvents_PowerModeChanged
             End
@@ -457,7 +477,7 @@ Public Class WinNUT
         Dim FormText As String = WinNUT_Globals.ProgramName
         Select Case Reason
             Case Nothing
-                If Not Me.UPS_Device.IsConnected Then
+                If Not NDNClient.IsConnected Then
                     NotifyStr &= WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_NOTCONN)
                     FormText &= " - " & WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_NOTCONN)
                 End If
@@ -515,7 +535,7 @@ Public Class WinNUT
         Dim Status As String = "Unknown"
         Select Case Reason
             Case Nothing, "Deconnected", "Lost Connect"
-                If Not WinNUT.UPS_Device.Nut_Socket.IsConnected Then
+                If Not WinNUT.NDNClient.IsConnected Then
                     WinNUT.PBox_Battery_State.Image = Nothing
                 End If
                 Status = "Unknown"
@@ -663,33 +683,33 @@ Public Class WinNUT
             '    End If
 
             Select Case Me.UPS_BattCh
-                    Case 76 To 100
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_100
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 51 To 75
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_75
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 40 To 50
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 26 To 39
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                    Case 11 To 25
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_25
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                    Case 0 To 10
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_0
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                End Select
+                Case 76 To 100
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_100
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 51 To 75
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_75
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 40 To 50
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 26 To 39
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+                Case 11 To 25
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_25
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+                Case 0 To 10
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_0
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+            End Select
 
-                Dim iSpan As TimeSpan = TimeSpan.FromSeconds(Me.UPS_BattRuntime)
+            Dim iSpan As TimeSpan = TimeSpan.FromSeconds(Me.UPS_BattRuntime)
 
             'Lbl_VRTime.Text = iSpan.Hours.ToString.PadLeft(2, "0"c) & ":" &
             'iSpan.Minutes.ToString.PadLeft(2, "0"c) & ":" &
@@ -721,7 +741,10 @@ Public Class WinNUT
     Private Sub Menu_Disconnect_Click(sender As Object, e As EventArgs) Handles Menu_Disconnect.Click
         LogFile.LogTracing("Force Disconnect from menu", LogLvl.LOG_DEBUG, Me)
         Update_Data.Stop()
-        Nut_Socket.Disconnect(True)
+        ' Nut_Socket.Disconnect(True)
+        If NDNClient.IsConnected Then
+            NDNClient.Disconnect()
+        End If
         ReInitDisplayValues()
         ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
         LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
@@ -756,8 +779,7 @@ Public Class WinNUT
 
     Private Sub Menu_Reconnect_Click(sender As Object, e As EventArgs) Handles Menu_Reconnect.Click
         LogFile.LogTracing("Force Reconnect from menu", LogLvl.LOG_DEBUG, Me)
-        UPS_Device.ReConnect()
-        UPS_Connect()
+        Server_Connect()
     End Sub
 
     Private Sub WinNUT_Deactivate(sender As Object, e As EventArgs) Handles MyBase.Deactivate
@@ -1092,7 +1114,7 @@ Public Class WinNUT
             LogFile.LogTracing("Loaded Params Complete", LogLvl.LOG_DEBUG, Me)
         End If
         Me.WinNUT_PrefsChanged()
-        UPS_Connect()
+        Server_Connect()
     End Sub
 End Class
 

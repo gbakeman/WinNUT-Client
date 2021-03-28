@@ -11,7 +11,7 @@ Imports System.Globalization
 Imports NUTDotNetClient
 
 Public Class UPS_Device
-    Private NDNUPS As ClientUPS
+    Public NDNUPS As ClientUPS
     'Private Nut_Conn As Nut_Comm
     Private LogFile As Logger
     Private Freq_Fallback As Double

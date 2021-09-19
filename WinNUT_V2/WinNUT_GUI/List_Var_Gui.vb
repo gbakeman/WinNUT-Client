@@ -88,7 +88,7 @@ Public Class List_Var_Gui
                 If SelectedNode.Parent.Text <> Me.UPS_Name And SelectedNode.Nodes.Count = 0 Then
                     Dim VarName = Strings.Replace(TView_UPSVar.SelectedNode.FullPath, Me.UPS_Name & ".", "")
                     LogFile.LogTracing("Update {VarName}", LogLvl.LOG_DEBUG, Me)
-                    Lbl_V_Value.Text = WinNUT.UPS_Device.NDNUPS.GetVariables()(VarName) ' WinNUT.UPS_Device.GetUPSVar(VarName, Me.UPS_Name)
+                    Lbl_V_Value.Text = WinNUT.UPS_Device.NDNUPS.GetVariableByName(VarName).Value ' WinNUT.UPS_Device.GetUPSVar(VarName, Me.UPS_Name)
                 End If
             End If
         End If

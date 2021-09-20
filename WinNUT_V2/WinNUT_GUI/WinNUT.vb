@@ -191,7 +191,7 @@ Public Class WinNUT
         ' Init connection to NUT server
 
         'Nut_Socket = New Nut_Comm(Me.Nut_Parameter)
-        'UPS_Device = New UPS_Device(Nut_Socket, WinNUT_Params.Arr_Reg_Key.Item("UPSName"), WinNUT.LogFile)
+        UPS_Device = New UPS_Device(WinNUT.LogFile)
         ' UPS_Device = New UPS_Device(Me.Nut_Config, WinNUT.LogFile)
         ' Nut_Socket = UPS_Device.Nut_Socket
         NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)

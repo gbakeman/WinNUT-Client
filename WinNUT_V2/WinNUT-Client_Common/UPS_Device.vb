@@ -18,7 +18,7 @@ Public Class UPS_Device
     Private ciClone As System.Globalization.CultureInfo
     Private Const CosPhi As Double = 0.6
 
-    Private Nut_Config As Nut_Parameter
+    ' Private Nut_Config As Nut_Parameter
 
     Public UPS_Datas As New UPS_Datas
     ' Public WithEvents Nut_Socket As Nut_Socket
@@ -110,9 +110,9 @@ Public Class UPS_Device
     '    End If
     'End Sub
 
-    Public Sub New(ByVal Nut_Config As Nut_Parameter, ByRef LogFile As Logger)
+    Public Sub New(ByRef LogFile As Logger)
         Me.LogFile = LogFile
-        Me.Nut_Config = Nut_Config
+        ' Me.Nut_Config = Nut_Config
         Me.ciClone = CType(CultureInfo.InvariantCulture.Clone(), CultureInfo)
         Me.ciClone.NumberFormat.NumberDecimalSeparator = "."
         ' Me.Nut_Socket = New Nut_Socket(Me.Nut_Config)
@@ -175,7 +175,7 @@ Public Class UPS_Device
     End Function
 
     Private Sub Init_Constant(ByRef Nut_Socket As Nut_Socket)
-        Dim UPSName = Me.Nut_Config.UPSName
+        ' Dim UPSName = Me.Nut_Config.UPSName
         Me.UPS_Datas.UPS_Value.Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity"), ciClone)
         Me.Freq_Fallback = Double.Parse(NDNUPS.GetVariables()("output.frequency.nominal") Or
             (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
@@ -185,6 +185,7 @@ Public Class UPS_Device
         ' Dim UPSName = Me.Nut_Config.UPSName
         LogFile.LogTracing("Enter Retrieve_UPS_Datas", LogLvl.LOG_DEBUG, Me)
         Try
+            ' Currently updates all variables at once. How often does this function run?
             Dim UPSVarsDict As Dictionary(Of String, String) = NDNUPS.GetVariables(True)
             Dim UPS_rt_Status As String = UPSVarsDict("ups.status") Or "OL" ' GetUPSVar("ups.status", UPSName, "OL")
             Dim InputA As Double

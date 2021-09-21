@@ -44,11 +44,11 @@
     <OptionInfer>On</OptionInfer>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NUTDotNetClient, Version=0.1.4.21081, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\NUTDotNetClient.0.1.4-alpha\lib\netstandard2.0\NUTDotNetClient.dll</HintPath>
+    <Reference Include="NUTDotNetClient, Version=0.2.1.21261, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\NUTDotNetClient.0.2.0-alpha\lib\netstandard2.0\NUTDotNetClient.dll</HintPath>
     </Reference>
-    <Reference Include="NUTDotNetShared, Version=0.1.4.21080, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\NUTDotNetShared.0.1.4-alpha\lib\netstandard2.0\NUTDotNetShared.dll</HintPath>
+    <Reference Include="NUTDotNetShared, Version=0.2.1.21261, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\NUTDotNetShared.0.2.0-alpha\lib\netstandard2.0\NUTDotNetShared.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />

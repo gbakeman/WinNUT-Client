@@ -110,11 +110,33 @@ Public Class UPS_Device
     '    End If
     'End Sub
 
-    Public Sub New(ByRef LogFile As Logger)
+    Public Sub New(NDNClient As NUTClient, UPSName As String, ByRef LogFile As Logger)
         Me.LogFile = LogFile
+        LogFile.LogTracing("Initializing UPS " + UPSName, LogLvl.LOG_NOTICE, Me)
+
         ' Me.Nut_Config = Nut_Config
         Me.ciClone = CType(CultureInfo.InvariantCulture.Clone(), CultureInfo)
         Me.ciClone.NumberFormat.NumberDecimalSeparator = "."
+
+        ' Relocating Connect_UPS code here to handle instantiating the wrapper.
+        For Each Known_UPS In NDNClient.GetUPSes() ' ListOfUPSs
+            ' If Known_UPS.VarValue = Test_UPSname Then
+            If Known_UPS.Name = UPSName Then
+                NDNUPS = Known_UPS
+            End If
+        Next
+
+        If NDNUPS IsNot Nothing Then
+            UPS_Datas = GetUPSProductInfo()
+            ' Init_Constant(Nut_Socket)
+            RaiseEvent Connected()
+        Else
+            LogFile.LogTracing("Given UPS Name is unknown", LogLvl.LOG_NOTICE, Me)
+            RaiseEvent Unknown_UPS()
+        End If
+        ' NOTE: WatchDog needs to be replaced by the NDN client library.
+        ' Me.WatchDog.Start()
+
         ' Me.Nut_Socket = New Nut_Socket(Me.Nut_Config)
         'With Me.Reconnect_Nut
         '    .Interval = 30000
@@ -132,10 +154,20 @@ Public Class UPS_Device
 
     'Public Sub Connect_UPS()
     '    Dim UPSName = Me.Nut_Config.UPSName
-    '    If Me.Nut_Socket.Connect() And Me.Nut_Socket.IsConnected Then
-    '        LogFile.LogTracing("TCP Socket Created", LogLvl.LOG_NOTICE, Me)
-    '        Me.Socket_Status = True
-    '        If Nut_Socket.IsKnownUPS(UPSName) Then
+    '    ' Commenting out connection check, since calling functions should handle that.
+    '    ' If Me.Nut_Socket.Connect() And Me.Nut_Socket.IsConnected Then
+    '    LogFile.LogTracing("Initializing UPS " + UPSName, LogLvl.LOG_NOTICE, Me)
+    '    ' Me.Socket_Status = True
+    '    Dim IsKnow As Boolean = False
+    '    ' Dim ListOfUPSs = Query_List_Datas("LIST UPS")
+    '    For Each Known_UPS In NDNClient.GetUPSes() ' ListOfUPSs
+    '        ' If Known_UPS.VarValue = Test_UPSname Then
+    '        If Known_UPS.Name = Test_UPSname Then
+    '            IsKnow = True ' TODO: Return here instead of continuing.
+    '        End If
+    '    Next
+    '    Return IsKnow
+    '    If Nut_Socket.IsKnownUPS(UPSName) Then
     '            Me.UPS_Datas = GetUPSProductInfo()
     '            Init_Constant(Nut_Socket)
     '            RaiseEvent Connected()
@@ -144,12 +176,12 @@ Public Class UPS_Device
     '            RaiseEvent Unknown_UPS()
     '        End If
     '        Me.WatchDog.Start()
-    '        'Else
-    '        '    If Not Reconnect_Nut.Enabled Then
-    '        '        RaiseEvent Lost_Connect()
-    '        '        Me.Socket_Status = False
-    '        '    End If
-    '    End If
+    '    'Else
+    '    '    If Not Reconnect_Nut.Enabled Then
+    '    '        RaiseEvent Lost_Connect()
+    '    '        Me.Socket_Status = False
+    '    '    End If
+    '    ' End If
     'End Sub
 
     'Public Sub ReConnect()
@@ -158,14 +190,21 @@ Public Class UPS_Device
     '    End If
     'End Sub
 
-    Private Function GetUPSProductInfo(ByVal UPSVarsDict As Dictionary(Of String, String)) As UPS_Datas
+    Private Function GetVarOrDefault() As String
+
+    End Function
+
+    Private Function GetUPSProductInfo() As UPS_Datas
         Dim UDatas As New UPS_Datas
         With UDatas
-            .Mfr = UPSVarsDict("ups.mfr")
-            .Model = UPSVarsDict("ups.model")
-            .Serial = UPSVarsDict("ups.serial")
-            .Firmware = UPSVarsDict("ups.firmware")
+            .Mfr = NDNUPS.GetVariable("ups.mfr").Value
+            .Model = NDNUPS.GetVariable("ups.model").Value
+            .Serial = NDNUPS.GetVariable("ups.serial").Value
+            .Firmware = NDNUPS.GetVariable("ups.firmware").Value
         End With
+        ' Setup frequency fallback (related to issue https://github.com/gawindx/WinNUT-Client/issues/17 ?)
+        Freq_Fallback = Double.Parse(NDNUPS.GetVariable("output.frequency.nominal").Value Or
+            (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
         'Dim UPSName = Me.Nut_Config.UPSName
         'UDatas.Mfr = Trim(Me.GetUPSVar("ups.mfr", UPSName, "Unknown"))
         'UDatas.Model = Trim(Me.GetUPSVar("ups.model", UPSName, "Unknown"))
@@ -174,43 +213,49 @@ Public Class UPS_Device
         Return UDatas
     End Function
 
-    Private Sub Init_Constant(ByRef Nut_Socket As Nut_Socket)
-        ' Dim UPSName = Me.Nut_Config.UPSName
-        Me.UPS_Datas.UPS_Value.Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity"), ciClone)
-        Me.Freq_Fallback = Double.Parse(NDNUPS.GetVariables()("output.frequency.nominal") Or
-            (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
-    End Sub
+    ' Functionality moved into Retrieve_UPS_Datas and GetUPSProductInfo
+    'Private Sub Init_Constant(ByRef Nut_Socket As Nut_Socket)
+    '    ' Dim UPSName = Me.Nut_Config.UPSName
+    '    Me.UPS_Datas.UPS_Value.Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity").Value, ciClone)
+    '    Me.Freq_Fallback = Double.Parse(NDNUPS.GetVariables()("output.frequency.nominal").Value Or
+    '        (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
+    'End Sub
 
     Public Function Retrieve_UPS_Datas() As UPS_Datas
         ' Dim UPSName = Me.Nut_Config.UPSName
         LogFile.LogTracing("Enter Retrieve_UPS_Datas", LogLvl.LOG_DEBUG, Me)
         Try
             ' Currently updates all variables at once. How often does this function run?
-            Dim UPSVarsDict As Dictionary(Of String, String) = NDNUPS.GetVariables(True)
-            Dim UPS_rt_Status As String = UPSVarsDict("ups.status") Or "OL" ' GetUPSVar("ups.status", UPSName, "OL")
+            ' Dim UPSVarsDict As Dictionary(Of String, String) = NDNUPS.GetVariables(True)
+            Dim UPS_rt_Status As String = NDNUPS.GetVariable("ups.status").Value Or "OL" ' GetUPSVar("ups.status", UPSName, "OL")
             Dim InputA As Double
             ' LogFile.LogTracing("Enter Retrieve_UPS_Data", LogLvl.LOG_DEBUG, Me)
-            With Me.UPS_Datas
-                Select Case "Unknown"
-                    Case .Mfr, .Model, .Serial, .Firmware
-                        Me.UPS_Datas = GetUPSProductInfo(UPSVarsDict)
-                End Select
-            End With
+
+            ' Basic UPS data should never change, and is already collected in the constructor method.
+            'With Me.UPS_Datas
+            '    Select Case "Unknown"
+            '        Case .Mfr, .Model, .Serial, .Firmware
+            '            Me.UPS_Datas = GetUPSProductInfo(UPSVarsDict)
+            '    End Select
+            'End With
+
             With Me.UPS_Datas.UPS_Value
                 ' TODO: Is it really a good idea to be providing default values when there's an error reading the real value?
                 ' NUT Protocol specifies the DATA-STALE error when variables can't be read, because false readings could lead to issues.
-                .Batt_Charge = Double.Parse(UPSVarsDict("battery.charge") Or 255, ciClone)
-                .Batt_Voltage = Double.Parse(UPSVarsDict("battery.voltage") Or 12, ciClone)
-                .Batt_Runtime = Double.Parse(UPSVarsDict("battery.runtime") Or 86400, ciClone)
-                .Power_Frequency = Double.Parse(UPSVarsDict("input.frequency") Or Double.Parse(UPSVarsDict("output.frequency") Or Freq_Fallback, ciClone), ciClone)
-                .Input_Voltage = Double.Parse(UPSVarsDict("input.voltage") Or 220, ciClone)
-                .Output_Voltage = Double.Parse(UPSVarsDict("output.voltage") Or .Input_Voltage, ciClone)
-                .Load = Double.Parse(UPSVarsDict("ups.load") Or 100, ciClone)
-                .Output_Power = Double.Parse(UPSVarsDict("ups.realpower.nominal") Or 0, ciClone)
+                .Batt_Charge = Double.Parse(NDNUPS.GetVariable("battery.charge").Value Or 255, ciClone)
+                ' Moved from Init_Constant function.
+                .Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity").Value, ciClone)
+                .Batt_Voltage = Double.Parse(NDNUPS.GetVariable("battery.voltage").Value Or 12, ciClone)
+                .Batt_Runtime = Double.Parse(NDNUPS.GetVariable("battery.runtime").Value Or 86400, ciClone)
+                .Power_Frequency = Double.Parse(NDNUPS.GetVariable("input.frequency").Value Or Double.Parse(NDNUPS.GetVariable("output.frequency").Value Or Freq_Fallback, ciClone), ciClone)
+                .Input_Voltage = Double.Parse(NDNUPS.GetVariable("input.voltage").Value Or 220, ciClone)
+                .Output_Voltage = Double.Parse(NDNUPS.GetVariable("output.voltage").Value Or .Input_Voltage, ciClone)
+                .Load = Double.Parse(NDNUPS.GetVariable("ups.load").Value Or 100, ciClone)
+                .Output_Power = Double.Parse(NDNUPS.GetVariable("ups.realpower.nominal").Value Or 0, ciClone)
                 If .Output_Power = 0 Then
-                    .Output_Power = Double.Parse(UPSVarsDict("ups.power.nominal") Or 0, ciClone)
+                    .Output_Power = Double.Parse(NDNUPS.GetVariable("ups.power.nominal").Value Or 0, ciClone)
                     If .Output_Power = 0 Then
-                        InputA = Double.Parse(UPSVarsDict("ups.current.nominal") Or 1, ciClone)
+                        InputA = Double.Parse(NDNUPS.GetVariable("ups.current.nominal").Value Or 1, ciClone)
                         .Output_Power = Math.Round(.Input_Voltage * 0.95 * InputA * CosPhi)
                     Else
                         .Output_Power = Math.Round(.Output_Power * (.Load / 100) * CosPhi)

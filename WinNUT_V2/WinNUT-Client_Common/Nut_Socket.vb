@@ -73,23 +73,23 @@ Public Class Nut_Socket
         End Get
     End Property
 
-    Public ReadOnly Property IsKnownUPS(Test_UPSname As String) As Boolean
-        Get
-            If Not Me.ConnectionStatus Then
-                Return False
-            Else
-                Dim IsKnow As Boolean = False
-                ' Dim ListOfUPSs = Query_List_Datas("LIST UPS")
-                For Each Known_UPS In NDNClient.GetUPSes() ' ListOfUPSs
-                    ' If Known_UPS.VarValue = Test_UPSname Then
-                    If Known_UPS.Name = Test_UPSname Then
-                        IsKnow = True ' TODO: Return here instead of continuing.
-                    End If
-                Next
-                Return IsKnow
-            End If
-        End Get
-    End Property
+    'Public ReadOnly Property IsKnownUPS(Test_UPSname As String) As Boolean
+    '    Get
+    '        If Not Me.ConnectionStatus Then
+    '            Return False
+    '        Else
+    '            Dim IsKnow As Boolean = False
+    '            ' Dim ListOfUPSs = Query_List_Datas("LIST UPS")
+    '            For Each Known_UPS In NDNClient.GetUPSes() ' ListOfUPSs
+    '                ' If Known_UPS.VarValue = Test_UPSname Then
+    '                If Known_UPS.Name = Test_UPSname Then
+    '                    IsKnow = True ' TODO: Return here instead of continuing.
+    '                End If
+    '            Next
+    '            Return IsKnow
+    '        End If
+    '    End Get
+    'End Property
 
     Public Sub Update_Config(ByVal New_Nut_Config As Nut_Parameter)
         Me.Nut_Config = New_Nut_Config

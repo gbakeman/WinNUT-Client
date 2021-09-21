@@ -15,14 +15,15 @@ Public Class WinNUT
     Public Shared WithEvents LogFile As New Logger(False, 0)
 
     'Object for UPS management
-    ' Testing using only NDN client here:
-    Public WithEvents UPS_Device As UPS_Device
     'Public Nut_Socket As Nut_Socket
+    ' Testing using only NDN client here:
     Private NDNClient As NUTClient
+    Public WithEvents UPS_Device As UPS_Device
 
     Public Nut_Config As New Nut_Parameter
     Public Device_Data As UPS_Datas
     Private Polling_Interval As Integer
+    ' Data update can should be able to replace the WatchDog timer from the UPS class.
     Private Update_Data As New System.Windows.Forms.Timer
     Private AutoReconnect As Boolean
     Private UPS_Retry As Integer = 0
@@ -191,7 +192,6 @@ Public Class WinNUT
         ' Init connection to NUT server
 
         'Nut_Socket = New Nut_Comm(Me.Nut_Parameter)
-        UPS_Device = New UPS_Device(WinNUT.LogFile)
         ' UPS_Device = New UPS_Device(Me.Nut_Config, WinNUT.LogFile)
         ' Nut_Socket = UPS_Device.Nut_Socket
         NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
@@ -343,6 +343,9 @@ Public Class WinNUT
         Catch ex As Exception
             LogFile.LogTracing("Error when connecting to NUT host: " + ex.Message, LogLvl.LOG_ERROR, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CON_FAILED), Host, Port, "Connection Error"))
         End Try
+
+        ' Finish up by associating with the UPS.
+        UPS_Device = New UPS_Device(NDNClient, Nut_Config.UPSName, LogFile)
     End Sub
 
     Private Sub Retrieve_UPS_Datas(sender As Object, e As EventArgs)

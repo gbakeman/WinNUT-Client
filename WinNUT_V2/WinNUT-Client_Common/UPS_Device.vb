@@ -190,21 +190,75 @@ Public Class UPS_Device
     '    End If
     'End Sub
 
-    Private Function GetVarOrDefault() As String
+    ''' <summary>
+    ''' Query the underlying NUT library for a variable's value, or fallback to a default value if an error is
+    ''' encountered.
+    ''' TODO: Reconsider using defaults and instead handle errors on a case-by-case basis?
+    ''' </summary>
+    ''' <param name="VarName">The name of the variable to query.</param>
+    ''' <param name="DefValue">The default value to supply if variable is not found.</param>
+    ''' <param name="ForceUpdate">True: Refresh variable from NUT server.
+    '''                           False: Get variable from local info cache.</param>
+    ''' <returns>The string value present in the variable.</returns>
+    Public Function GetVarOrDefault(VarName As String,
+            DefValue As String,
+            Optional ForceUpdate As Boolean = True) As String
+
+        Dim ReturnVal = DefValue
+
+        Try
+            ReturnVal = NDNUPS.GetVariable(VarName, ForceUpdate).Value
+        Catch ex As NUTException
+            LogFile.LogTracing("NUTException while trying to query variable '" + VarName + "': " + ex.ErrorCode,
+                               LogLvl.LOG_NOTICE, Me)
+        End Try
+
+        Return ReturnVal
+    End Function
+
+    ''' <summary>
+    ''' Same as the <see cref="GetVarOrDefault(String, String, Boolean)"/> function, but parses the result into
+    ''' a Double. Any exceptions are returned.
+    ''' </summary>
+    ''' <param name="VarName"></param>
+    ''' <param name="DefValue"></param>
+    ''' <param name="ForceUpdate"></param>
+    ''' <returns></returns>
+    Public Function GetDoubleOrDefault(VarName As String,
+            DefValue As Double,
+            Optional ForceUpdate As Boolean = True) As Double
+
+        Dim ReturnVal = DefValue
+
+        Try
+            ReturnVal = Double.Parse(NDNUPS.GetVariable(VarName, ForceUpdate).Value, ciClone)
+        Catch ex As NUTException
+            LogFile.LogTracing("NUTException while trying to query variable '" + VarName + "': " + ex.ErrorCode.ToString(),
+                               LogLvl.LOG_NOTICE, Me)
+        End Try
+
+        Return ReturnVal
 
     End Function
 
     Private Function GetUPSProductInfo() As UPS_Datas
         Dim UDatas As New UPS_Datas
         With UDatas
-            .Mfr = NDNUPS.GetVariable("ups.mfr").Value
-            .Model = NDNUPS.GetVariable("ups.model").Value
-            .Serial = NDNUPS.GetVariable("ups.serial").Value
-            .Firmware = NDNUPS.GetVariable("ups.firmware").Value
+            .Mfr = GetVarOrDefault("ups.mfr", "Unknown", False)
+            .Model = GetVarOrDefault("ups.model", "Unknown", False)
+            .Serial = GetVarOrDefault("ups.serial", "Unknown", False)
+            .Firmware = GetVarOrDefault("ups.firmware", "Unknown", False)
+
+            ' Initialize constants.
+            .UPS_Value.Batt_Capacity = GetDoubleOrDefault("battery.capacity", 7, False)
         End With
+
+        ' Initialize some other constants.
+
         ' Setup frequency fallback (related to issue https://github.com/gawindx/WinNUT-Client/issues/17 ?)
-        Freq_Fallback = Double.Parse(NDNUPS.GetVariable("output.frequency.nominal").Value Or
-            (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
+        Freq_Fallback = GetDoubleOrDefault("output.frequency.nominal",
+                                           50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10, False)
+
         'Dim UPSName = Me.Nut_Config.UPSName
         'UDatas.Mfr = Trim(Me.GetUPSVar("ups.mfr", UPSName, "Unknown"))
         'UDatas.Model = Trim(Me.GetUPSVar("ups.model", UPSName, "Unknown"))
@@ -213,7 +267,7 @@ Public Class UPS_Device
         Return UDatas
     End Function
 
-    ' Functionality moved into Retrieve_UPS_Datas and GetUPSProductInfo
+    ' Functionality moved into GetUPSProductInfo
     'Private Sub Init_Constant(ByRef Nut_Socket As Nut_Socket)
     '    ' Dim UPSName = Me.Nut_Config.UPSName
     '    Me.UPS_Datas.UPS_Value.Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity").Value, ciClone)
@@ -221,15 +275,18 @@ Public Class UPS_Device
     '        (50 + CInt(WinNUT_Params.Arr_Reg_Key.Item("FrequencySupply")) * 10), Me.ciClone)
     'End Sub
 
+    ''' <summary>
+    ''' Refresh common UPS variables, handle conversions and out-of-range values, and return them in a class.
+    ''' </summary>
+    ''' <returns></returns>
     Public Function Retrieve_UPS_Datas() As UPS_Datas
         ' Dim UPSName = Me.Nut_Config.UPSName
         LogFile.LogTracing("Enter Retrieve_UPS_Datas", LogLvl.LOG_DEBUG, Me)
         Try
-            ' Currently updates all variables at once. How often does this function run?
+            ' TODO: Is it really a good idea to be providing default values when there's an error reading the real value?
+            ' NUT Protocol specifies the DATA-STALE error when variables can't be read, because false readings could lead to issues.
+
             ' Dim UPSVarsDict As Dictionary(Of String, String) = NDNUPS.GetVariables(True)
-            Dim UPS_rt_Status As String = NDNUPS.GetVariable("ups.status").Value Or "OL" ' GetUPSVar("ups.status", UPSName, "OL")
-            Dim InputA As Double
-            ' LogFile.LogTracing("Enter Retrieve_UPS_Data", LogLvl.LOG_DEBUG, Me)
 
             ' Basic UPS data should never change, and is already collected in the constructor method.
             'With Me.UPS_Datas
@@ -240,22 +297,42 @@ Public Class UPS_Device
             'End With
 
             With Me.UPS_Datas.UPS_Value
-                ' TODO: Is it really a good idea to be providing default values when there's an error reading the real value?
-                ' NUT Protocol specifies the DATA-STALE error when variables can't be read, because false readings could lead to issues.
-                .Batt_Charge = Double.Parse(NDNUPS.GetVariable("battery.charge").Value Or 255, ciClone)
-                ' Moved from Init_Constant function.
-                .Batt_Capacity = Double.Parse(NDNUPS.GetVariables()("battery.capacity").Value, ciClone)
-                .Batt_Voltage = Double.Parse(NDNUPS.GetVariable("battery.voltage").Value Or 12, ciClone)
-                .Batt_Runtime = Double.Parse(NDNUPS.GetVariable("battery.runtime").Value Or 86400, ciClone)
-                .Power_Frequency = Double.Parse(NDNUPS.GetVariable("input.frequency").Value Or Double.Parse(NDNUPS.GetVariable("output.frequency").Value Or Freq_Fallback, ciClone), ciClone)
-                .Input_Voltage = Double.Parse(NDNUPS.GetVariable("input.voltage").Value Or 220, ciClone)
-                .Output_Voltage = Double.Parse(NDNUPS.GetVariable("output.voltage").Value Or .Input_Voltage, ciClone)
-                .Load = Double.Parse(NDNUPS.GetVariable("ups.load").Value Or 100, ciClone)
-                .Output_Power = Double.Parse(NDNUPS.GetVariable("ups.realpower.nominal").Value Or 0, ciClone)
+                .Batt_Charge = GetDoubleOrDefault("battery.charge", 255, True)
+                If .Batt_Charge = 255 Then
+                    Dim nBatt = Math.Floor(.Batt_Voltage / 12)
+                    .Batt_Charge = Math.Floor((.Batt_Voltage - (11.6 * nBatt)) / (0.02 * nBatt))
+                End If
+
+                .Batt_Voltage = GetDoubleOrDefault("battery.voltage", 12, True)
+                .Batt_Runtime = GetDoubleOrDefault("battery.runtime", 86400, True)
+                If .Batt_Runtime >= 86400 Then
+                    'If Load is 0, the calculation results in infinity. This causes an exception in DataUpdated(), causing Me.Disconnect to run in the exception handler below.
+                    'Thus a connection is established, but is forcefully disconneced almost immediately. This cycle repeats on each connect until load is <> 0
+                    '(Example: I have a 0% load if only Pi, Microtik Router, Wifi AP and switches are running)
+                    .Load = If(.Load <> 0, .Load, 0.1)
+                    Dim BattInstantCurrent = (.Output_Voltage * .Load) / (.Batt_Voltage * 100)
+                    Dim PowerDivider As Double = 0.5
+                    Select Case .Load
+                        Case 76 To 100
+                            PowerDivider = 0.4
+                        Case 51 To 75
+                            PowerDivider = 0.3
+                    End Select
+
+                    .Batt_Runtime = Math.Floor(.Batt_Capacity * 0.6 * .Batt_Charge * (1 - PowerDivider) * 3600 / (BattInstantCurrent * 100))
+                End If
+
+                ' Power Frequency is the input frequency, or the output frequency, or the fallback is neither are available.
+                .Power_Frequency = GetDoubleOrDefault("input.frequency", GetDoubleOrDefault("output.frequency", Freq_Fallback, True), True)
+                .Input_Voltage = GetDoubleOrDefault("input.voltage", 220, True)
+                .Output_Voltage = GetDoubleOrDefault("output.voltage", .Input_Voltage, True)
+                .Load = GetDoubleOrDefault("ups.load", 100, True)
+                .Output_Power = GetDoubleOrDefault("ups.realpower.nominal", 0, True)
                 If .Output_Power = 0 Then
-                    .Output_Power = Double.Parse(NDNUPS.GetVariable("ups.power.nominal").Value Or 0, ciClone)
+                    .Output_Power = GetDoubleOrDefault("ups.power.nominal", 0, True)
                     If .Output_Power = 0 Then
-                        InputA = Double.Parse(NDNUPS.GetVariable("ups.current.nominal").Value Or 1, ciClone)
+                        Dim InputA As Double
+                        InputA = GetDoubleOrDefault("ups.current.nominal", 1, True)
                         .Output_Power = Math.Round(.Input_Voltage * 0.95 * InputA * CosPhi)
                     Else
                         .Output_Power = Math.Round(.Output_Power * (.Load / 100) * CosPhi)
@@ -263,25 +340,8 @@ Public Class UPS_Device
                 Else
                     .Output_Power = Math.Round(.Output_Power * (.Load / 100))
                 End If
-                Dim PowerDivider As Double = 0.5
-                Select Case .Load
-                    Case 76 To 100
-                        PowerDivider = 0.4
-                    Case 51 To 75
-                        PowerDivider = 0.3
-                End Select
-                If .Batt_Charge = 255 Then
-                    Dim nBatt = Math.Floor(.Batt_Voltage / 12)
-                    .Batt_Charge = Math.Floor((.Batt_Voltage - (11.6 * nBatt)) / (0.02 * nBatt))
-                End If
-                If .Batt_Runtime >= 86400 Then
-                    'If Load is 0, the calculation results in infinity. This causes an exception in DataUpdated(), causing Me.Disconnect to run in the exception handler below.
-                    'Thus a connection is established, but is forcefully disconneced almost immediately. This cycle repeats on each connect until load is <> 0
-                    '(Example: I have a 0% load if only Pi, Microtik Router, Wifi AP and switches are running)
-                    .Load = If(.Load <> 0, .Load, 0.1)
-                    Dim BattInstantCurrent = (.Output_Voltage * .Load) / (.Batt_Voltage * 100)
-                    .Batt_Runtime = Math.Floor(.Batt_Capacity * 0.6 * .Batt_Charge * (1 - PowerDivider) * 3600 / (BattInstantCurrent * 100))
-                End If
+
+                Dim UPS_rt_Status As String = GetVarOrDefault("ups.status", "OL", True) ' GetUPSVar("ups.status", UPSName, "OL")
                 Dim StatusArr = UPS_rt_Status.Trim().Split(" ")
                 .UPS_Status = 0
                 For Each State In StatusArr
@@ -352,6 +412,7 @@ Public Class UPS_Device
             'Me.Disconnect(True)
             'Enter_Reconnect_Process(Excep, "Error When Retrieve_UPS_Data : ")
         End Try
+
         Return Me.UPS_Datas
     End Function
 

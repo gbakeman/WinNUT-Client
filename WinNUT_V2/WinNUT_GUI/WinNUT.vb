@@ -196,11 +196,16 @@ Public Class WinNUT
         ' Nut_Socket = UPS_Device.Nut_Socket
         NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
 
+        ' Setup automatic data polling.
         Me.Polling_Interval = WinNUT_Params.Arr_Reg_Key.Item("Delay")
-        With Me.Update_Data
-            .Interval = Me.Polling_Interval
-            .Enabled = True
-        End With
+        Update_Data.Interval = Polling_Interval
+        AddHandler Update_Data.Tick, AddressOf Retrieve_UPS_Datas
+
+        ' Don't start the Update_Data timer until we're connected.
+        'With Me.Update_Data
+        '    .Interval = Me.Polling_Interval
+        '    .Enabled = True
+        'End With
 
         'UPS_Device.Battery_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitBatteryCharge")
         'UPS_Device.Backup_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitUPSRemainTime")
@@ -336,16 +341,19 @@ Public Class WinNUT
             NDNClient.SetUsername(Login)
             NDNClient.SetPassword(Password)
             LogFile.LogTracing("Connection to Nut Host Established", LogLvl.LOG_NOTICE, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CONNECTED), Host, Port))
-            Update_Data.Start()
-            AddHandler Update_Data.Tick, AddressOf Retrieve_UPS_Datas
-            Me.Device_Data = UPS_Device.Retrieve_UPS_Datas()
-            RaiseEvent Data_Updated()
         Catch ex As Exception
             LogFile.LogTracing("Error when connecting to NUT host: " + ex.Message, LogLvl.LOG_ERROR, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CON_FAILED), Host, Port, "Connection Error"))
         End Try
 
-        ' Finish up by associating with the UPS.
+        ' Associate with the UPS
         UPS_Device = New UPS_Device(NDNClient, Nut_Config.UPSName, LogFile)
+
+        ' Begin updating our data from the UPS. Below sub does what the other three lines do.
+        Event_ReConnected()
+
+        'Me.Device_Data = UPS_Device.Retrieve_UPS_Datas()
+        'Update_Data.Start()
+        'RaiseEvent Data_Updated()
     End Sub
 
     Private Sub Retrieve_UPS_Datas(sender As Object, e As EventArgs)

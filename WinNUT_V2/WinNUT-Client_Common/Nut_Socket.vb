@@ -45,15 +45,15 @@ Public Class Nut_Socket
     Public Event Socket_Broken()
     Public Event Socket_Deconnected()
 
-    Public Sub New(ByVal Nut_Config As Nut_Parameter)
-        NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
-        'With Me.WatchDog
-        '    .Interval = 1000
-        '    .Enabled = False
-        '    AddHandler .Tick, AddressOf Event_WatchDog
-        'End With
-        Update_Config(Nut_Config)
-    End Sub
+    'Public Sub New(ByVal Nut_Config As Nut_Parameter)
+    '    NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
+    '    'With Me.WatchDog
+    '    '    .Interval = 1000
+    '    '    .Enabled = False
+    '    '    AddHandler .Tick, AddressOf Event_WatchDog
+    '    'End With
+    '    Update_Config(Nut_Config)
+    'End Sub
     Public ReadOnly Property IsConnected() As Boolean
         Get
             ' Return Me.ConnectionStatus
@@ -295,30 +295,30 @@ Public Class Nut_Socket
     'End Function
 
     ' Parse and enumerate a NUT protocol response.
-    Private Function EnumResponse(ByVal Data As String) As NUTResponse
-        Dim Response As NUTResponse
-        ' Remove hyphens to prepare for parsing.
-        Dim SanitisedString = UCase(Data.Replace("-", String.Empty))
-        ' Break the response down so we can get specifics.
-        Dim SplitString = SanitisedString.Split(" "c)
+    'Private Function EnumResponse(ByVal Data As String) As NUTResponse
+    '    Dim Response As NUTResponse
+    '    ' Remove hyphens to prepare for parsing.
+    '    Dim SanitisedString = UCase(Data.Replace("-", String.Empty))
+    '    ' Break the response down so we can get specifics.
+    '    Dim SplitString = SanitisedString.Split(" "c)
 
-        Select Case SplitString(0)
-            Case "OK", "VAR", "BEGIN", "DESC", "UPS"
-                Response = NUTResponse.OK
-            Case "END"
-                Response = NUTResponse.ENDLIST
-            Case "ERR"
-                Response = DirectCast([Enum].Parse(GetType(NUTResponse), SplitString(1)), NUTResponse)
-            Case "NETWORK", "1.0", "1.1", "1.2"
-                'In case of "VER" or "NETVER" Query
-                Response = NUTResponse.OK
-            Case Else
-                ' We don't recognize the response, throw an error.
-                Response = NUTResponse.NORESPONSE
-                'Throw New Exception("Unknown response from NUT server: " & Response)
-        End Select
-        Return Response
-    End Function
+    '    Select Case SplitString(0)
+    '        Case "OK", "VAR", "BEGIN", "DESC", "UPS"
+    '            Response = NUTResponse.OK
+    '        Case "END"
+    '            Response = NUTResponse.ENDLIST
+    '        Case "ERR"
+    '            Response = DirectCast([Enum].Parse(GetType(NUTResponse), SplitString(1)), NUTResponse)
+    '        Case "NETWORK", "1.0", "1.1", "1.2"
+    '            'In case of "VER" or "NETVER" Query
+    '            Response = NUTResponse.OK
+    '        Case Else
+    '            ' We don't recognize the response, throw an error.
+    '            Response = NUTResponse.NORESPONSE
+    '            'Throw New Exception("Unknown response from NUT server: " & Response)
+    '    End Select
+    '    Return Response
+    'End Function
 
     'Private Function AuthLogin(ByVal Login As String, ByVal Password As String) As Boolean
     '    Try

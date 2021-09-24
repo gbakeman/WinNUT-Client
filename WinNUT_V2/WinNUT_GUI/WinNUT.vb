@@ -8,6 +8,7 @@
 ' This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY
 
 Imports WinNUT_Client_Common
+Imports NUTDotNetClient
 
 Public Class WinNUT
     'Logger Class Object
@@ -15,7 +16,8 @@ Public Class WinNUT
 
     'Object for UPS management
     Public WithEvents UPS_Device As UPS_Device
-    Public Nut_Socket As Nut_Socket
+    ' Public Nut_Socket As Nut_Socket
+    Private NDNClient As NUTClient
     Public Nut_Config As New Nut_Parameter
     Public Device_Data As UPS_Datas
     Private Polling_Interval As Integer
@@ -188,7 +190,7 @@ Public Class WinNUT
         'Nut_Socket = New Nut_Comm(Me.Nut_Parameter)
         'UPS_Device = New UPS_Device(Nut_Socket, WinNUT_Params.Arr_Reg_Key.Item("UPSName"), WinNUT.LogFile)
         UPS_Device = New UPS_Device(Me.Nut_Config, WinNUT.LogFile)
-        Nut_Socket = UPS_Device.Nut_Socket
+        ' Nut_Socket = UPS_Device.Nut_Socket
         Me.Polling_Interval = WinNUT_Params.Arr_Reg_Key.Item("Delay")
         With Me.Update_Data
             .Interval = Me.Polling_Interval
@@ -312,7 +314,12 @@ Public Class WinNUT
 
     Private Sub UPS_Connect()
         LogFile.LogTracing("Connect To Nut Server", LogLvl.LOG_DEBUG, Me)
-        UPS_Device.Connect_UPS()
+
+        If NDNClient Is Nothing Then
+            NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
+        End If
+
+        ' UPS_Device.Connect_UPS()
         Dim Host = Me.Nut_Config.Host
         Dim Port = Me.Nut_Config.Port
         Dim Login = Me.Nut_Config.Login

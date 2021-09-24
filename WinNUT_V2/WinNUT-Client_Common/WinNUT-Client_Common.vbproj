@@ -44,6 +44,12 @@
     <OptionInfer>On</OptionInfer>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="NUTDotNetClient, Version=0.2.1.21261, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\NUTDotNetClient.0.2.0-alpha\lib\netstandard2.0\NUTDotNetClient.dll</HintPath>
+    </Reference>
+    <Reference Include="NUTDotNetShared, Version=0.2.1.21261, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\NUTDotNetShared.0.2.0-alpha\lib\netstandard2.0\NUTDotNetShared.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
@@ -126,6 +132,7 @@
       <CustomToolNamespace>My</CustomToolNamespace>
       <LastGenOutput>Settings.Designer.vb</LastGenOutput>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.VisualBasic.targets" />
 </Project>

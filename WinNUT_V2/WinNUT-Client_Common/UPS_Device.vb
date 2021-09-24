@@ -125,6 +125,7 @@ Public Class UPS_Device
         AddHandler Nut_Socket.Socket_Deconnected, AddressOf Socket_Deconnected
         Connect_UPS()
     End Sub
+
     Public Sub Connect_UPS()
         Dim UPSName = Me.Nut_Config.UPSName
         If Me.Nut_Socket.Connect() And Me.Nut_Socket.IsConnected Then
@@ -146,6 +147,7 @@ Public Class UPS_Device
             '    End If
         End If
     End Sub
+
     Public Sub ReConnect()
         If Not Me.IsConnected Then
             Nut_Socket.Connect()

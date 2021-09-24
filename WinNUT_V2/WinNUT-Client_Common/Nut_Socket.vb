@@ -13,14 +13,17 @@
 Imports System.Net.Sockets
 Imports System.IO
 Imports System.Windows.Forms
+Imports NUTDotNetClient
 
 Public Class Nut_Socket
     'Socket Variables
-    Private NutSocket As Socket
-    Private NutTCP As TcpClient
-    Private NutStream As NetworkStream
-    Private ReaderStream As StreamReader
-    Private WriterStream As StreamWriter
+    'Private NutSocket As Socket
+    'Private NutTCP As TcpClient
+    'Private NutStream As NetworkStream
+    'Private ReaderStream As StreamReader
+    'Private WriterStream As StreamWriter
+
+    Private NDNClient As NUTClient
 
     Private Nut_Parameter As Nut_Parameter
 
@@ -84,10 +87,26 @@ Public Class Nut_Socket
             End If
         End Get
     End Property
+
     Public Sub Update_Config(ByVal New_Nut_Config As Nut_Parameter)
         Me.Nut_Config = New_Nut_Config
     End Sub
-    Public Function Connect() As Boolean
+
+    ''' <summary>
+    ''' Be sure to catch thrown exceptions:
+    ''' class <see cref="TcpClient" />TcpClient
+    ''' - <see cref="ArgumentNullException" /> when <paramref name="Host" /> is Null.
+    ''' - <see cref="ArgumentOutOfRangeException" /> when <paramref name="Port" /> is out of range.
+    ''' - <see cref="SocketException" /> some error occurred while accessing the socket.
+    ''' class <see cref="TcpClient.GetStream()" />
+    ''' - <see cref="InvalidOperationException" /> when TcpClient is not connection.
+    ''' - <see cref="ObjectDisposedException" /> TcpClient was closed.
+    ''' </summary>
+    ''' <param name="Host"></param>
+    ''' <param name="Port"></param>
+    ''' <param name="Username"></param>
+    ''' <param name="Password"></param>
+    Public Sub Connect(Host As String, Port As Integer, Username As String, Password As String)
         Try
             'TODO: Use LIST UPS protocol command to get valid UPSs.
             Dim Host = Me.Nut_Config.Host
@@ -121,21 +140,28 @@ Public Class Nut_Socket
             RaiseEvent OnError(Excep, LogLvl.LOG_ERROR, Me)
             Return False
         End Try
-    End Function
-    Private Function Create_Socket(ByVal Host As String, ByVal Port As Integer) As Boolean
+    End Sub
+
+    ''' <summary>
+    ''' The old Create_Socket function. Wraps NDN's Connect routine.
+    ''' <param name="Host"></param>
+    ''' <param name="Port"></param>
+    ''' </summary>
+    Private Sub Create_Socket(ByVal Host As String, ByVal Port As Integer)
         Try
-            Me.NutSocket = New Socket(AddressFamily.InterNetwork, ProtocolType.IP)
-            Me.NutTCP = New TcpClient(Host, Port)
-            Me.NutStream = NutTCP.GetStream
-            Me.ReaderStream = New StreamReader(NutStream)
-            Me.WriterStream = New StreamWriter(NutStream)
+            'Me.NutSocket = New Socket(AddressFamily.InterNetwork, ProtocolType.IP)
+            'Me.NutTCP = New TcpClient(Host, Port)
+            'Me.NutStream = NutTCP.GetStream
+            'Me.ReaderStream = New StreamReader(NutStream)
+            'Me.WriterStream = New StreamWriter(NutStream)
             Me.ConnectionStatus = True
         Catch Excep As Exception
             RaiseEvent OnError(New Nut_Exception(Nut_Exception_Value.CONNECT_ERROR, Excep.Message), LogLvl.LOG_ERROR, Me)
             Me.ConnectionStatus = False
         End Try
         Return Me.ConnectionStatus
-    End Function
+    End Sub
+
     Public Function Query_Data(Query_Msg As String) As (Data As String, Response As NUTResponse)
         Dim Response As NUTResponse = NUTResponse.NORESPONSE
         Dim DataResult As String = ""

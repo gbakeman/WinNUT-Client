@@ -8,7 +8,7 @@
 ' This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY
 
 Imports WinNUT_Client_Common
-Imports NUTDotNetClient
+' Imports NUTDotNetClient
 
 Public Class WinNUT
     'Logger Class Object
@@ -16,8 +16,8 @@ Public Class WinNUT
 
     'Object for UPS management
     Public WithEvents UPS_Device As UPS_Device
-    ' Public Nut_Socket As Nut_Socket
-    Private NDNClient As NUTClient
+    Public Nut_Socket As Nut_Socket
+    ' Private NDNClient As NUTClient
     Public Nut_Config As New Nut_Parameter
     Public Device_Data As UPS_Datas
     Private Polling_Interval As Integer
@@ -314,10 +314,6 @@ Public Class WinNUT
 
     Private Sub UPS_Connect()
         LogFile.LogTracing("Connect To Nut Server", LogLvl.LOG_DEBUG, Me)
-
-        If NDNClient Is Nothing Then
-            NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
-        End If
 
         ' UPS_Device.Connect_UPS()
         Dim Host = Me.Nut_Config.Host
@@ -670,33 +666,33 @@ Public Class WinNUT
             '    End If
 
             Select Case Me.UPS_BattCh
-                    Case 76 To 100
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_100
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 51 To 75
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_75
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 40 To 50
-                        Lbl_VBL.BackColor = Color.White
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
-                        LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
-                    Case 26 To 39
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                    Case 11 To 25
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_25
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                    Case 0 To 10
-                        Lbl_VBL.BackColor = Color.Red
-                        ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_0
-                        LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
-                End Select
+                Case 76 To 100
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_100
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 51 To 75
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_75
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 40 To 50
+                    Lbl_VBL.BackColor = Color.White
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
+                    LogFile.LogTracing("Battery Charged", LogLvl.LOG_DEBUG, Me)
+                Case 26 To 39
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_50
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+                Case 11 To 25
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_25
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+                Case 0 To 10
+                    Lbl_VBL.BackColor = Color.Red
+                    ActualAppIconIdx = ActualAppIconIdx Or AppIconIdx.IDX_BATT_0
+                    LogFile.LogTracing("Low Battery", LogLvl.LOG_DEBUG, Me)
+            End Select
 
-                Dim iSpan As TimeSpan = TimeSpan.FromSeconds(Me.UPS_BattRuntime)
+            Dim iSpan As TimeSpan = TimeSpan.FromSeconds(Me.UPS_BattRuntime)
 
             'Lbl_VRTime.Text = iSpan.Hours.ToString.PadLeft(2, "0"c) & ":" &
             'iSpan.Minutes.ToString.PadLeft(2, "0"c) & ":" &

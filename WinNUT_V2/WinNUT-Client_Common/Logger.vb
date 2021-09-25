@@ -67,18 +67,19 @@ Public Class Logger
         End Set
     End Property
 
-    Public Sub LogTracing(ByVal message As String, ByVal LvlError As Int16, sender As Object, Optional ByVal LogToDisplay As String = Nothing)
+    Public Sub LogTracing(Message As String, LvlError As LogLvl, Sender As Object, Optional ByVal LogToDisplay As String = Nothing)
         Dim Pid = TEventCache.ProcessId
-        Dim SenderName = sender.GetType.Name
+        Dim SenderName = Sender.GetType.Name
         Dim EventTime = Now.ToLocalTime
-        Dim FinalMsg = EventTime & " Pid: " & Pid & " " & SenderName & " : " & message
+        Dim FinalMsg = String.Format("{0} PID: {1} [{2}] {3} : {4}", EventTime, Pid, LvlError, SenderName, Message)
+        ' Dim FinalMsg = EventTime & " Pid: " & Pid & " " & " [" & LvlError & "] " & SenderName & " : " & Message
 
         'Update LogFilePath to make sure it's still the correct path
         WinNUT_Globals.LogFilePath = Me.LogFile.FullLogFileName
 
         ' Always write log messages to the attached debug messages window.
 #If DEBUG Then
-       Debug.WriteLine(FinalMsg)
+        Debug.WriteLine(FinalMsg)
 #End If
 
         'Create Event in EventList in case of crash for generate Report
@@ -94,7 +95,7 @@ Public Class Logger
         'If LvlError = LogLvl.LOG_NOTICE Then
         If LogToDisplay IsNot Nothing Then
             Me.L_CurrentLogData = LogToDisplay
-            RaiseEvent NewData(sender)
+            RaiseEvent NewData(Sender)
         End If
     End Sub
 End Class

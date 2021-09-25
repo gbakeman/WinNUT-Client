@@ -10,9 +10,11 @@
 Imports WinNUT_Client_Common
 Imports System.Threading
 Imports System.ComponentModel
+Imports NUTDotNetShared
+Imports NUTDotNetClient
 
 Public Class List_Var_Gui
-    Private List_Var_Datas As List(Of UPS_List_Datas)
+    Private List_Var_Datas As List(Of UPSVariable)
     Private LogFile As Logger
     Private UPS_Name = WinNUT.Nut_Config.UPSName
     Private Sub List_Var_Gui_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -43,7 +45,7 @@ Public Class List_Var_Gui
         For Each UPS_Var In List_Var_Datas
             LastNode = TView_UPSVar.Nodes(0)
             Dim FullPathNode = String.Empty
-            For Each SubPath In (Strings.Split(UPS_Var.VarKey, "."))
+            For Each SubPath In (Strings.Split(UPS_Var.Name, "."))
                 FullPathNode += SubPath & "."
                 Dim Nodes = TView_UPSVar.Nodes.Find(FullPathNode, True)
                 If Nodes.Length = 0 Then
@@ -88,7 +90,7 @@ Public Class List_Var_Gui
                 If SelectedNode.Parent.Text <> Me.UPS_Name And SelectedNode.Nodes.Count = 0 Then
                     Dim VarName = Strings.Replace(TView_UPSVar.SelectedNode.FullPath, Me.UPS_Name & ".", "")
                     LogFile.LogTracing("Update {VarName}", LogLvl.LOG_DEBUG, Me)
-                    Lbl_V_Value.Text = WinNUT.UPS_Device.GetUPSVar(VarName, Me.UPS_Name)
+                    Lbl_V_Value.Text = WinNUT.UPS_Device.GetUPSVar(VarName, True)
                 End If
             End If
         End If
@@ -112,24 +114,31 @@ Public Class List_Var_Gui
         Dim index As Integer = 0
         Dim UPSName = WinNUT_Params.Arr_Reg_Key.Item("UPSName")
         Dim SelectedChild = Strings.Replace(e.Node.FullPath, UPSName & ".", "")
-        Dim FindChild As Predicate(Of UPS_List_Datas) = Function(ByVal x As UPS_List_Datas)
-                                                            If x.VarKey = SelectedChild Then
-                                                                Return True
-                                                            Else
-                                                                index += 1
-                                                                Return False
-                                                            End If
-                                                        End Function
-        If Not SelectedChild = UPSName And List_Var_Datas.FindIndex(FindChild) <> -1 Then
+        'Dim FindChild As Predicate(Of UPS_List_Datas) = Function(ByVal x As UPS_List_Datas)
+        '                                                    If x.VarKey = SelectedChild Then
+        '                                                        Return True
+        '                                                    Else
+        '                                                        index += 1
+        '                                                        Return False
+        '                                                    End If
+        '                                                End Function
+        ' If Not SelectedChild = UPSName Then ' And List_Var_Datas.FindIndex(FindChild) <> -1 Then
+        Dim SelectedVar As UPSVariable
+        Try
+            SelectedVar = WinNUT.UPS_Device.GetNUTUPSVar(SelectedChild)
             LogFile.LogTracing("Select {List_Var_Datas.Item(index).VarKey} Node", LogLvl.LOG_DEBUG, Me)
-            Lbl_N_Value.Text = List_Var_Datas.Item(index).VarKey
-            Lbl_V_Value.Text = List_Var_Datas.Item(index).VarValue
-            Lbl_D_Value.Text = List_Var_Datas.Item(index).VarDesc
-        Else
+            Lbl_N_Value.Text = SelectedVar.Name
+            Lbl_V_Value.Text = SelectedVar.Value
+            Lbl_D_Value.Text = SelectedVar.Description
+        Catch ex As NUTException
             Lbl_N_Value.Text = ""
             Lbl_V_Value.Text = ""
             Lbl_D_Value.Text = ""
-        End If
+        End Try
+
+        ' Else
+
+        ' End If
     End Sub
 
     Private Sub Btn_Clip_Click(sender As Object, e As EventArgs) Handles Btn_Clip.Click
@@ -139,9 +148,9 @@ Public Class List_Var_Gui
             ToClipBoard = WinNUT_Params.Arr_Reg_Key.Item("UPSName") & " (" & .Mfr & "/" & .Model & "/" & .Firmware & ")" & vbNewLine
         End With
         For Each LDatas In List_Var_Datas
-            ToClipBoard &= LDatas.VarKey & " (" & LDatas.VarDesc & ") : " & LDatas.VarValue & vbNewLine
+            ToClipBoard &= LDatas.Name & " (" & LDatas.Description & ") : " & LDatas.Value & vbNewLine
         Next
-        My.Computer.Clipboard.SetText(ToClipboard)
+        My.Computer.Clipboard.SetText(ToClipBoard)
     End Sub
     Function GetChildren(parentNode As TreeNode) As List(Of String)
         Dim nodes As List(Of String) = New List(Of String)

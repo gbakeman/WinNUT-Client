@@ -18,7 +18,7 @@ Imports NUTDotNetClient
 ''' <summary>
 ''' Maintain a connection to a NUT server.
 ''' </summary>
-Public Class Nut_Client
+Public Class WinNUTClient
     'Socket Variables
     'Private NutSocket As Socket
     'Private NutTCP As TcpClient
@@ -29,6 +29,7 @@ Public Class Nut_Client
     Private NDNClient As NUTClient
 
     Private Nut_Parameter As Nut_Parameter
+    Private LogFile As Logger
 
     'Private Nut_Ver As String
     'Private Net_Ver As String
@@ -37,7 +38,7 @@ Public Class Nut_Client
 
     Private Nut_Config As Nut_Parameter
 
-    Public Auth_Success As Boolean = False
+    ' Public Auth_Success As Boolean = False
     Private ReadOnly WatchDog As New Timer
 
     'Public Event OnNotice(Message As String, NoticeLvl As LogLvl, sender As Object, ReportToGui As Boolean)
@@ -49,7 +50,7 @@ Public Class Nut_Client
     Public Event Socket_Broken()
     Public Event Socket_Deconnected()
 
-#Region Properties
+#Region "Properties"
     Public ReadOnly Property IsConnected() As Boolean
         Get
             ' Return Me.ConnectionStatus
@@ -87,9 +88,10 @@ Public Class Nut_Client
     'End Property
 #End Region
 
-    Public Sub New(ByVal Nut_Config As Nut_Parameter)
+    Public Sub New(ByVal Nut_Config As Nut_Parameter, LogObj As Logger)
         ' Create NUTDotNet client. Not connected yet.
         NDNClient = New NUTClient(Nut_Config.Host, Nut_Config.Port)
+        LogFile = LogObj
 
         ' TODO: Instantiate and configure timer in a different (reconnect?) method.
         'With Me.WatchDog
@@ -106,57 +108,55 @@ Public Class Nut_Client
     ''' The old Create_Socket function. Wraps NDN's Connect routine.
     ''' Possible exceptions:
     ''' class <see cref="TcpClient" />TcpClient
-    ''' - <see cref="ArgumentNullException" /> when <paramref name="Host" /> is Null.
-    ''' - <see cref="ArgumentOutOfRangeException" /> when <paramref name="Port" /> is out of range.
+    ''' - <see cref="ArgumentNullException" /> when Host is Null.
+    ''' - <see cref="ArgumentOutOfRangeException" /> when Port is out of range.
     ''' - <see cref="SocketException" /> some error occurred while accessing the socket.
     ''' class <see cref="TcpClient.GetStream()" />
     ''' - <see cref="InvalidOperationException" /> when TcpClient is not connection.
     ''' - <see cref="ObjectDisposedException" /> TcpClient was closed.
     ''' </summary>
-    ''' <param name="Host"></param>
-    ''' <param name="Port"></param>
-    Public Sub Connect(Host As String, Port As Integer)
-        Try
-            'TODO: Use LIST UPS protocol command to get valid UPSs.
-            'Dim Host = Me.Nut_Config.Host
-            'Dim Port = Me.Nut_Config.Port
-            'Dim Login = Me.Nut_Config.Login
-            'Dim Password = Me.Nut_Config.Password
-            'Dim Response As Boolean = False
+    Public Sub Connect()
+        ' Try
+        'TODO: Use LIST UPS protocol command to get valid UPSs.
+        'Dim Host = Me.Nut_Config.Host
+        'Dim Port = Me.Nut_Config.Port
+        'Dim Login = Me.Nut_Config.Login
+        'Dim Password = Me.Nut_Config.Password
+        'Dim Response As Boolean = False
 
-            ' If Not String.IsNullOrEmpty(Host) And Not IsNothing(Port) Then
-            If NDNClient Is Nothing Then
-                Throw New InvalidOperationException("Tried to connect when NUTClient object is Nothing.")
-            End If
+        ' If Not String.IsNullOrEmpty(Host) And Not IsNothing(Port) Then
+        If NDNClient Is Nothing Then
+            Throw New InvalidOperationException("Tried to connect when NUTClient object is Nothing.")
+        End If
 
-            NDNClient.Connect()
+        NDNClient.Connect()
 
-            'If Not Create_Socket(Host, Port) Then
-            '    Throw New Nut_Exception(Nut_Exception_Value.CONNECT_ERROR)
-            '    Disconnect()
-            'Else
-            'If Not AuthLogin(Login, Password) Then
-            '        Throw New Nut_Exception(Nut_Exception_Value.INVALID_AUTH_DATA)
-            '    End If
-            '    Dim Nut_Query = Query_Data("VER")
+        'If Not Create_Socket(Host, Port) Then
+        '    Throw New Nut_Exception(Nut_Exception_Value.CONNECT_ERROR)
+        '    Disconnect()
+        'Else
+        'If Not AuthLogin(Login, Password) Then
+        '        Throw New Nut_Exception(Nut_Exception_Value.INVALID_AUTH_DATA)
+        '    End If
+        '    Dim Nut_Query = Query_Data("VER")
 
-            '    If Nut_Query.Response = NUTResponse.OK Then
-            '        Me.Nut_Ver = (Nut_Query.Data.Split(" "c))(4)
-            '    End If
-            '    Nut_Query = Query_Data("NETVER")
+        '    If Nut_Query.Response = NUTResponse.OK Then
+        '        Me.Nut_Ver = (Nut_Query.Data.Split(" "c))(4)
+        '    End If
+        '    Nut_Query = Query_Data("NETVER")
 
-            '    If Nut_Query.Response = NUTResponse.OK Then
-            '        Me.Net_Ver = Nut_Query.Data
-            '    End If
-            '    Response = True
-            'End If
-            ' End If
-            ' Return Response
-        Catch Excep As Exception
-            Disconnect()
-            RaiseEvent OnError(Excep, LogLvl.LOG_ERROR, Me)
-            ' Return False
-        End Try
+        '    If Nut_Query.Response = NUTResponse.OK Then
+        '        Me.Net_Ver = Nut_Query.Data
+        '    End If
+        '    Response = True
+        'End If
+        ' End If
+        ' Return Response
+        ' Catch Excep As Exception
+        ' Disconnect()
+        ' RaiseEvent OnError(Excep, LogLvl.LOG_ERROR, Me)
+        ' Return False
+        ' End Try
     End Sub
 
     'Private Sub Close_Socket()
@@ -181,6 +181,18 @@ Public Class Nut_Client
             RaiseEvent Socket_Deconnected()
         End If
     End Sub
+
+    Public Function GetUPS(Name As String) As UPS_Device
+        For Each UPS In NDNClient.GetUPSes()
+            If UPS.Name = Name Then
+                Return New UPS_Device(Nut_Config, LogFile, UPS)
+            End If
+        Next
+
+        LogFile.LogTracing("Given UPS Name is unknown", LogLvl.LOG_NOTICE, Me)
+        RaiseEvent Unknown_UPS()
+        Return Nothing
+    End Function
 
     ' Below belongs in a UPS, not the connection/socket.
     'Public Sub AuthLogin(Username As String, Password As String)

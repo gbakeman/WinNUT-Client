@@ -108,7 +108,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
     <Compile Include="ToastPopup.vb" />
-    <Compile Include="Nut_Socket.vb" />
+    <Compile Include="WinNUTClient.vb" />
     <Compile Include="UPS_Device.vb" />
     <Compile Include="WinNUT_Globals.vb" />
     <Compile Include="WinNUT_Params.vb" />

@@ -16,15 +16,20 @@ Public Class WinNUT
 
     'Object for UPS management
     Public WithEvents UPS_Device As UPS_Device
-    Public NUTClient As WinNUTClient
+    Public WithEvents NUTClient As WinNUTClient
     ' Private NDNClient As NUTClient
     Public Nut_Config As New Nut_Parameter
     ' Public Device_Data As UPS_Datas
     Private Polling_Interval As Integer
+
     Private Update_Data As New System.Windows.Forms.Timer
-    Private AutoReconnect As Boolean
-    Private UPS_Retry As Integer = 0
-    Private UPS_MaxRetry As Integer = 30
+
+    ' Private AutoReconnect As Boolean
+    Private ReadOnly Reconnect_Nut As New Timer
+    Private MaxConnectionRetry As Integer = 30
+    Public Event New_Retry()
+    Public Event ReConnected()
+    Public Event Disconnected()
 
     'Variable used with Toast Functionnality
     Public WithEvents FrmBuild As Update_Gui
@@ -64,7 +69,8 @@ Public Class WinNUT
     Private Event On_Battery()
     Private Event On_Line()
     Private Event Data_Updated()
-    Private Shared Event UpdateNotifyIconStr(ByVal Reason As String, ByVal Message As String)
+    ' Public Event LostConnectionEvent(Message As String)
+    Private Shared Event UpdateNotifyIconStr(Reason As String, Message As String)
     Private Shared Event UpdateBatteryState(ByVal Reason As String)
 
     'Handle sleep/hibernate mode from windows API
@@ -89,6 +95,30 @@ Public Class WinNUT
             Me.WinNUT_Crashed = Value
         End Set
     End Property
+
+    Private Sub ReInitDisplayValues()
+        LogFile.LogTracing("Update all informations displayed to empty values", LogLvl.LOG_DEBUG, Me)
+        Me.UPS_Mfr = ""
+        Me.UPS_Model = ""
+        Me.UPS_Serial = ""
+        Me.UPS_Firmware = ""
+        Lbl_VOL.BackColor = Color.White
+        Lbl_VOB.BackColor = Color.White
+        Lbl_VOLoad.BackColor = Color.White
+        Lbl_VBL.BackColor = Color.White
+        Lbl_VRTime.Text = ""
+        Lbl_VMfr.Text = Me.UPS_Mfr
+        Lbl_VName.Text = Me.UPS_Model
+        Lbl_VSerial.Text = Me.UPS_Serial
+        Lbl_VFirmware.Text = Me.UPS_Firmware
+        AG_InV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")
+        AG_InF.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")
+        AG_OutV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")
+        AG_BattCh.Value1 = 0
+        AG_Load.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")
+        AG_Load.Value2 = 0
+        AG_BattV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")
+    End Sub
 
     Private Sub WinNUT_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         LogFile.WriteLog = True
@@ -195,7 +225,15 @@ Public Class WinNUT
         Me.Polling_Interval = WinNUT_Params.Arr_Reg_Key.Item("Delay")
         Update_Data.Interval = Me.Polling_Interval
         AddHandler Update_Data.Tick, AddressOf Retrieve_UPS_Datas
+
         ' .Enabled = True
+
+        ' Setup reconnection timer settings.
+        With Reconnect_Nut
+            .Interval = 5000 '5 Second pause between attempting reconnections. Is this reasonable?
+            ' .Enabled = False
+            AddHandler .Tick, AddressOf Reconnect_Socket
+        End With
 
         'UPS_Device.Battery_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitBatteryCharge")
         'UPS_Device.Backup_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitUPSRemainTime")
@@ -336,9 +374,104 @@ Public Class WinNUT
         Catch ex As Exception
             LogFile.LogTracing("Error When Connection to Nut Host: " + ex.Message, LogLvl.LOG_ERROR, Me,
                                String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CON_FAILED), Host, Port, "Connection Error"))
+            Return
         End Try
 
         UPS_Associate()
+    End Sub
+
+    ''' <summary>Handle cleaning up and disconnecting from a server.</summary>
+    ''' <param name="Quiet">Suppress messages and UI changes.</param>
+    Private Sub ServerDisconnect(Optional Quiet As Boolean = False)
+        Update_Data.Stop()
+        Reconnect_Nut.Stop()
+        NUTClient.Disconnect(True)
+        ReInitDisplayValues()
+
+        RaiseEvent Disconnected()
+
+        If Quiet Then
+            LogFile.LogTracing("Disconnecting from " & NUTClient.Host, LogLvl.LOG_NOTICE, Me, StrLog.Item(AppResxStr.STR_LOG_LOGOFF))
+            ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
+            LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
+            UpdateIcon_NotifyIcon()
+            RaiseEvent UpdateNotifyIconStr("Disconnected", Nothing)
+            RaiseEvent UpdateBatteryState("Disconnected")
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Actions to perform when a connection to a NUT server is lost. Adopted from the UPS_Device class.
+    ''' </summary>
+    Private Sub LostConnection(Messgae As String) ' UPS_Device.Lost_Connect
+        'Dim Host = Nut_Config.Host
+        'Dim Port = Nut_Config.Port
+        ' Update_Data.Stop()
+        ' WatchDog.Stop()
+        LogFile.LogTracing("Nut Server " & NUTClient.Host & " Lost Connection", LogLvl.LOG_ERROR, Me,
+                           String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_LOSTCONNECT), NUTClient.Host, NUTClient.Port))
+        'LogFile.LogTracing("Fix All data to null/empty String", LogLvl.LOG_DEBUG, WinNUT)
+        'LogFile.LogTracing("Fix All Dial Data to Min Value/0", LogLvl.LOG_DEBUG, WinNUT)
+
+        ' ReInitDisplayValues()
+        ServerDisconnect(True)
+        If Nut_Config.AutoReconnect Then
+            LogFile.LogTracing("Reconnection Process Started", LogLvl.LOG_NOTICE, Me)
+            ' Reconnect_Nut.Enabled = True
+            Reconnect_Nut.Start()
+        End If
+
+        'If Nut_Config.AutoReconnect And ConnectionRetry <= MaxConnectionRetry Then
+
+        'Else
+        '    ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
+        'End If
+
+        ' UpdateIcon_NotifyIcon()
+        RaiseEvent UpdateNotifyIconStr("Lost Connect", Nothing)
+        RaiseEvent UpdateBatteryState("Lost Connect")
+        ' LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
+    End Sub
+
+    ''' <summary>
+    ''' Leftover from UPS/Client code
+    ''' </summary>
+    'Private Sub ConnectionLost()
+    '    LogFile.LogTracing("Connection was lost to server " & NDNClient.Host, LogLvl.LOG_ERROR, Me)
+    '    Disconnect(True)
+
+    '    ' If Not Me.Socket_Status Then
+    '    RaiseEvent Socket_Broken()
+    '    ' End If
+    '    ' Me.Socket_Status = False
+
+    'End Sub
+
+    Public ConnectionRetry As Integer = 0
+
+    Private Sub Reconnect_Socket(sender As Object, e As EventArgs)
+        If ConnectionRetry <= MaxConnectionRetry Then
+            ConnectionRetry += 1
+            RaiseEvent New_Retry()
+            LogFile.LogTracing(String.Format("Try Reconnect {0} / {1}", ConnectionRetry, MaxConnectionRetry), LogLvl.LOG_NOTICE, Me,
+                               String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_NEW_RETRY), ConnectionRetry, MaxConnectionRetry))
+            Server_Connect()
+        Else
+            LogFile.LogTracing("Max Retry reached. Stop Process Autoreconnect and wait for manual Reconnection", LogLvl.LOG_ERROR, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_STOP_RETRY))
+            ' Reconnect_Nut.Enabled = False
+            Reconnect_Nut.Stop()
+            ConnectionRetry = 0
+            RaiseEvent Disconnected()
+        End If
+
+        ' Check if we're done, then broadcast the event.
+        If NUTClient.IsConnected Then
+            LogFile.LogTracing("Nut Host Reconnected", LogLvl.LOG_DEBUG, Me)
+            ' Reconnect_Nut.Enabled = False
+            Reconnect_Nut.Stop()
+            ConnectionRetry = 0
+            RaiseEvent ReConnected()
+        End If
     End Sub
 
     ''' <summary>
@@ -362,7 +495,14 @@ Public Class WinNUT
 
     Private Sub Retrieve_UPS_Datas(sender As Object, e As EventArgs)
         ' Me.Device_Data = UPS_Device.Retrieve_UPS_Datas()
-        UPS_Device.Retrieve_UPS_Datas()
+        ' Move less-frequent connection error handling into the client.
+        Try
+            UPS_Device.Retrieve_UPS_Datas()
+        Catch ex As IO.IOException
+            LostConnection(ex.Message)
+            Return
+        End Try
+
         RaiseEvent Data_Updated()
     End Sub
 
@@ -461,11 +601,12 @@ Public Class WinNUT
         End If
     End Sub
 
-    Private Shared Sub NewRetry_NotifyIcon() Handles UPS_Device.New_Retry
-        Dim Message As String = String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_RETRY), WinNUT.UPS_Device.Retry, WinNUT.UPS_Device.MaxRetry)
+    Private Sub NewRetry_NotifyIcon() Handles Me.New_Retry
+        Dim Message As String = String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_RETRY), ConnectionRetry, MaxConnectionRetry)
+        ActualAppIconIdx = AppIconIdx.IDX_ICO_RETRY
         RaiseEvent UpdateNotifyIconStr("Retry", Message)
-        WinNUT.UpdateIcon_NotifyIcon()
-        LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, WinNUT)
+        UpdateIcon_NotifyIcon()
+        LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
     End Sub
 
     Private Shared Sub Reconnect_NotifyIcon() Handles UPS_Device.Connected
@@ -475,12 +616,12 @@ Public Class WinNUT
         RaiseEvent UpdateNotifyIconStr("Connected", Nothing)
     End Sub
 
-    Private Shared Sub Deconnected_NotifyIcon() Handles UPS_Device.Deconnected
+    Private Shared Sub Disconnected_NotifyIcon() Handles Me.Disconnected
         WinNUT.ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
         LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, WinNUT)
         WinNUT.UpdateIcon_NotifyIcon()
-        RaiseEvent UpdateNotifyIconStr("Deconnected", Nothing)
-        RaiseEvent UpdateBatteryState("Deconnected")
+        RaiseEvent UpdateNotifyIconStr("Disconnected", Nothing)
+        RaiseEvent UpdateBatteryState("Disconnected")
         WinNUT.Update_Data.Stop()
     End Sub
 
@@ -501,7 +642,7 @@ Public Class WinNUT
             Case "Connected"
                 NotifyStr &= WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_CONN)
                 FormText &= " - Bat: " & Me.UPS_BattCh & "% - " & WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_CONN)
-            Case "Deconnected"
+            Case "Disconnected"
                 NotifyStr &= WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_NOTCONN)
                 FormText &= " - " & WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_NOTCONN)
             Case "Unknown UPS"
@@ -547,7 +688,7 @@ Public Class WinNUT
         Static Dim Old_Battery_Value As Integer = WinNUT.UPS_BattCh
         Dim Status As String = "Unknown"
         Select Case Reason
-            Case Nothing, "Deconnected", "Lost Connect"
+            Case Nothing, "Disconnected", "Lost Connect"
                 If Not WinNUT.NUTClient.IsConnected Then
                     WinNUT.PBox_Battery_State.Image = Nothing
                 End If
@@ -593,33 +734,9 @@ Public Class WinNUT
         HasFocus = False
     End Sub
 
-    Private Shared Sub UPS_Lostconnect() Handles UPS_Device.Lost_Connect
-        With WinNUT
-            Dim Host = .Nut_Config.Host
-            Dim Port = .Nut_Config.Port
-            .Update_Data.Stop()
-            LogFile.LogTracing("Nut Server Lost Connection", LogLvl.LOG_ERROR, WinNUT, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_MAIN_LOSTCONNECT), Host, Port))
-            LogFile.LogTracing("Fix All data to null/empty String", LogLvl.LOG_DEBUG, WinNUT)
-            LogFile.LogTracing("Fix All Dial Data to Min Value/0", LogLvl.LOG_DEBUG, WinNUT)
-
-            .ReInitDisplayValues()
-            If .AutoReconnect And .UPS_Retry <= .UPS_MaxRetry Then
-                .ActualAppIconIdx = AppIconIdx.IDX_ICO_RETRY
-            Else
-                .ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
-            End If
-
-            .UpdateIcon_NotifyIcon()
-            RaiseEvent UpdateNotifyIconStr("Lost Connect", Nothing)
-            RaiseEvent UpdateBatteryState("Lost Connect")
-            LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, WinNUT)
-        End With
-    End Sub
-
-    Public Shared Sub Event_ChangeStatus() Handles Me.On_Battery, Me.On_Line,
-        UPS_Device.Lost_Connect, UPS_Device.Connected, UPS_Device.Deconnected, UPS_Device.New_Retry, UPS_Device.Unknown_UPS, UPS_Device.ReConnected,
-        UPS_Device.Unknown_UPS
-        ', UPS_Device.InvalidLogin,
+    Public Shared Sub Event_ChangeStatus() Handles Me.On_Battery, Me.On_Line, Me.New_Retry, Me.Disconnected,
+        UPS_Device.Lost_Connect, UPS_Device.Connected, UPS_Device.Unknown_UPS, UPS_Device.Unknown_UPS
+        ', UPS_Device.InvalidLogin
 
         WinNUT.NotifyIcon.BalloonTipText = WinNUT.NotifyIcon.Text
         If WinNUT.AllowToast And WinNUT.NotifyIcon.BalloonTipText <> "" Then
@@ -630,7 +747,7 @@ Public Class WinNUT
         End If
     End Sub
 
-    Public Shared Sub Event_ReConnected() Handles UPS_Device.ReConnected
+    Public Shared Sub Event_ReConnected() Handles Me.ReConnected
         With WinNUT
             .Update_Data.Start()
             .UPS_Device.Retrieve_UPS_Datas()
@@ -755,38 +872,7 @@ Public Class WinNUT
 
     Private Sub Menu_Disconnect_Click(sender As Object, e As EventArgs) Handles Menu_Disconnect.Click
         LogFile.LogTracing("Force Disconnect from menu", LogLvl.LOG_DEBUG, Me)
-        Update_Data.Stop()
-        NUTClient.Disconnect(True)
-        ReInitDisplayValues()
-        ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
-        LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
-        UpdateIcon_NotifyIcon()
-        RaiseEvent UpdateNotifyIconStr("Deconnected", Nothing)
-        RaiseEvent UpdateBatteryState("Deconnected")
-    End Sub
-
-    Private Sub ReInitDisplayValues()
-        LogFile.LogTracing("Update all informations displayed ton empty values", LogLvl.LOG_DEBUG, Me)
-        Me.UPS_Mfr = ""
-        Me.UPS_Model = ""
-        Me.UPS_Serial = ""
-        Me.UPS_Firmware = ""
-        Lbl_VOL.BackColor = Color.White
-        Lbl_VOB.BackColor = Color.White
-        Lbl_VOLoad.BackColor = Color.White
-        Lbl_VBL.BackColor = Color.White
-        Lbl_VRTime.Text = ""
-        Lbl_VMfr.Text = Me.UPS_Mfr
-        Lbl_VName.Text = Me.UPS_Model
-        Lbl_VSerial.Text = Me.UPS_Serial
-        Lbl_VFirmware.Text = Me.UPS_Firmware
-        AG_InV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")
-        AG_InF.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")
-        AG_OutV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")
-        AG_BattCh.Value1 = 0
-        AG_Load.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")
-        AG_Load.Value2 = 0
-        AG_BattV.Value1 = WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")
+        ServerDisconnect()
     End Sub
 
     Private Sub Menu_Reconnect_Click(sender As Object, e As EventArgs) Handles Menu_Reconnect.Click

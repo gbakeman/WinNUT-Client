@@ -24,12 +24,8 @@ Public Class UPS_Device
 
     Public UPS_Datas As New UPS_Datas
 
-    Public Retry As Integer = 0
-    Public MaxRetry As Integer = 30
-    Private ReadOnly Reconnect_Nut As New System.Windows.Forms.Timer
     Private ReadOnly WatchDog As New System.Windows.Forms.Timer
-    Private Socket_Status As Boolean = False
-
+    ' Private Socket_Status As Boolean = False
 
     'Private LogFile As Logger
     'Private ConnectionStatus As Boolean = False
@@ -79,12 +75,9 @@ Public Class UPS_Device
     Public Event Unknown_UPS()
     Public Event DataUpdated()
     Public Event Connected()
-    Public Event ReConnected()
-    Public Event Deconnected()
-    Public Event Lost_Connect()
-    Public Event New_Retry()
     Public Event Shutdown_Condition()
     Public Event Stop_Shutdown()
+    Public Event Lost_Connect()
 
     'Public ReadOnly Property IsConnected() As Boolean
     '    Get
@@ -95,6 +88,12 @@ Public Class UPS_Device
     Public ReadOnly Property IsAuthenticated() As Boolean
         Get
             Return NDNUPS.IsLoggedIn ' Me.Nut_Socket.Auth_Success
+        End Get
+    End Property
+
+    Public ReadOnly Property Name As String
+        Get
+            Return NDNUPS.Name
         End Get
     End Property
 
@@ -115,19 +114,16 @@ Public Class UPS_Device
         Me.Nut_Config = Nut_Config
         Me.ciClone = CType(CultureInfo.InvariantCulture.Clone(), CultureInfo)
         Me.ciClone.NumberFormat.NumberDecimalSeparator = "."
+
         ' Me.Nut_Socket = New Nut_Socket(Me.Nut_Config)
 
-        'With Me.Reconnect_Nut
-        '    .Interval = 30000
-        '    .Enabled = False
-        '    AddHandler .Tick, AddressOf Reconnect_Socket
-        'End With
+
         'With Me.WatchDog
         '    .Interval = 1000
         '    .Enabled = False
         '    AddHandler .Tick, AddressOf Event_WatchDog
         'End With
-        'AddHandler Nut_Socket.Socket_Deconnected, AddressOf Socket_Deconnected
+        'AddHandler Nut_Socket.ConnectionLost, AddressOf ConnectionLost
         ' InitUPS()
 
         NDNUPS = UPS
@@ -192,7 +188,7 @@ Public Class UPS_Device
     'End Sub
 
     Public Sub Retrieve_UPS_Datas()
-        Dim UPSName = Me.Nut_Config.UPSName
+        ' Dim UPSName = Me.Nut_Config.UPSName
         LogFile.LogTracing("Enter Retrieve_UPS_Datas", LogLvl.LOG_DEBUG, Me)
         ' Try
         Dim UPS_rt_Status As String
@@ -358,6 +354,10 @@ Public Class UPS_Device
                 Throw NUTEx
                 ' RaiseEvent OnError(Excep, LogLvl.LOG_ERROR, Me)
             End If
+            ' Connection has broken.
+            'Catch ex As IO.IOException
+            '    RaiseEvent Lost_Connect()
+            '    Return Nothing
         End Try
 
         Return Nothing
@@ -430,42 +430,10 @@ Public Class UPS_Device
     '    Return StringArray(StringArray.Length - 1)
     'End Function
 
-    'Private Sub Socket_Deconnected()
-    '    WatchDog.Stop()
-    '    LogFile.LogTracing("TCP Socket Deconnected", LogLvl.LOG_WARNING, Me)
-    '    If Not Me.Socket_Status Then
-    '        RaiseEvent Lost_Connect()
-    '    End If
-    '    Me.Socket_Status = False
-    '    If Me.Nut_Config.AutoReconnect Then
-    '        LogFile.LogTracing("Reconnection Process Started", LogLvl.LOG_NOTICE, Me)
-    '        Reconnect_Nut.Enabled = True
-    '        Reconnect_Nut.Start()
-    '    End If
-    'End Sub
-
     'Private Sub Socket_Broken() Handles Nut_Socket.Socket_Broken
     '    LogFile.LogTracing("TCP Socket seems Broken", LogLvl.LOG_WARNING, Me)
-    '    Socket_Deconnected()
+    '    ConnectionLost()
     'End Sub
-    'Private Sub Reconnect_Socket(sender As Object, e As EventArgs)
-    '    Me.Retry += 1
-    '    If Me.Retry <= Me.MaxRetry Then
-    '        RaiseEvent New_Retry()
-    '        LogFile.LogTracing(String.Format("Try Reconnect {0} / {1}", Me.Retry, Me.MaxRetry), LogLvl.LOG_NOTICE, Me, String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_NEW_RETRY), Me.Retry, Me.MaxRetry))
-    '        Me.InitUPS()
-    '        If Me.IsConnected Then
-    '            LogFile.LogTracing("Nut Host Reconnected", LogLvl.LOG_DEBUG, Me)
-    '            Reconnect_Nut.Enabled = False
-    '            Reconnect_Nut.Stop()
-    '            Me.Retry = 0
-    '            RaiseEvent ReConnected()
-    '        End If
-    '    Else
-    '        LogFile.LogTracing("Max Retry reached. Stop Process Autoreconnect and wait for manual Reconnection", LogLvl.LOG_ERROR, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_STOP_RETRY))
-    '        Reconnect_Nut.Enabled = False
-    '        Reconnect_Nut.Stop()
-    '        RaiseEvent Deconnected()
-    '    End If
-    'End Sub
+
+
 End Class

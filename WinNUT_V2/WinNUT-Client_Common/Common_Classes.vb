@@ -1,4 +1,6 @@
-﻿Public Class UPS_Var_Node
+﻿Imports NUTDotNetShared
+
+Public Class UPS_Var_Node
     Public VarKey As String
     Public VarValue As String
     Public VarDesc As String
@@ -24,7 +26,7 @@ Public Class UPS_Values
 End Class
 
 Public Class UPS_Datas
-    Public Name As String = ""
+    ' Public Name As String = ""
     Public Mfr As String = ""
     Public Model As String = ""
     Public Serial As String = ""

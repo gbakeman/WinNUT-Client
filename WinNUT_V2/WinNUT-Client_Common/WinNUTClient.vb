@@ -28,15 +28,14 @@ Public Class WinNUTClient
 
     Private NDNClient As NUTClient
 
+
+
+
+    Private Nut_Config As Nut_Parameter
     Private Nut_Parameter As Nut_Parameter
     Private LogFile As Logger
 
-    'Private Nut_Ver As String
-    'Private Net_Ver As String
-
     ' Private ConnectionStatus As Boolean
-
-    Private Nut_Config As Nut_Parameter
 
     ' Public Auth_Success As Boolean = False
     Private ReadOnly WatchDog As New Timer
@@ -67,6 +66,18 @@ Public Class WinNUTClient
         Get
             ' Return Me.Net_Ver
             Return NDNClient.ProtocolVersion
+        End Get
+    End Property
+
+    Public ReadOnly Property Host As String
+        Get
+            Return NDNClient.Host
+        End Get
+    End Property
+
+    Public ReadOnly Property Port As Integer
+        Get
+            Return NDNClient.Port
         End Get
     End Property
 
@@ -171,11 +182,18 @@ Public Class WinNUTClient
     '    Me.ConnectionStatus = False
     'End Sub
 
-    Public Sub Disconnect(Optional ByVal ForceDisconnect = False)
+    Public Sub Disconnect(Optional ForceDisconnect = False)
+        If (ForceDisconnect) Then
+            LogFile.LogTracing("Force Disconnecting.", LogLvl.LOG_WARNING, Me)
+        Else
+            LogFile.LogTracing("Disconnecting.", LogLvl.LOG_NOTICE, Me)
+        End If
+
+
+        WatchDog.Stop()
         ' Query_Data("LOGOUT")
         NDNClient.Disconnect()
         ' Close_Socket()
-        WatchDog.Stop()
 
         If Not ForceDisconnect Then
             RaiseEvent Socket_Deconnected()
@@ -185,7 +203,10 @@ Public Class WinNUTClient
     Public Function GetUPS(Name As String) As UPS_Device
         For Each UPS In NDNClient.GetUPSes()
             If UPS.Name = Name Then
-                Return New UPS_Device(Nut_Config, LogFile, UPS)
+                Dim FoundUPS = New UPS_Device(Nut_Config, LogFile, UPS)
+                ' Connect up UPS's connection lost event to handle an error.
+                ' AddHandler FoundUPS.Lost_Connect, AddressOf ConnectionLost
+                Return FoundUPS
             End If
         Next
 

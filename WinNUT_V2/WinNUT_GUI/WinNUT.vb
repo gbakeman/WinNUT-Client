@@ -390,7 +390,7 @@ Public Class WinNUT
 
         RaiseEvent Disconnected()
 
-        If Quiet Then
+        If Not Quiet Then
             LogFile.LogTracing("Disconnecting from " & NUTClient.Host, LogLvl.LOG_NOTICE, Me, StrLog.Item(AppResxStr.STR_LOG_LOGOFF))
             ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
             LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
@@ -612,7 +612,7 @@ Public Class WinNUT
     Private Shared Sub Reconnect_NotifyIcon() Handles UPS_Device.Connected
         WinNUT.Menu_UPS_Var.Enabled = True
         WinNUT.UpdateIcon_NotifyIcon()
-        LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, WinNUT)
+        LogFile.LogTracing("Update Icon - Reconnect", LogLvl.LOG_DEBUG, WinNUT)
         RaiseEvent UpdateNotifyIconStr("Connected", Nothing)
     End Sub
 
@@ -624,6 +624,7 @@ Public Class WinNUT
         RaiseEvent UpdateBatteryState("Disconnected")
         WinNUT.Update_Data.Stop()
     End Sub
+
 
     Private Sub Event_UpdateNotifyIconStr(ByVal Optional Reason As String = Nothing, ByVal Optional Message As String = Nothing) Handles Me.UpdateNotifyIconStr
         Dim ShowVersion As String = WinNUT_Globals.ShortProgramVersion
@@ -878,7 +879,7 @@ Public Class WinNUT
     Private Sub Menu_Reconnect_Click(sender As Object, e As EventArgs) Handles Menu_Reconnect.Click
         LogFile.LogTracing("Force Reconnect from menu", LogLvl.LOG_DEBUG, Me)
         Server_Connect()
-        UPS_Associate()
+        ' UPS_Associate()
     End Sub
 
     Private Sub WinNUT_Deactivate(sender As Object, e As EventArgs) Handles MyBase.Deactivate

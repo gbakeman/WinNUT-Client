@@ -187,16 +187,13 @@ Public Class WinNUTClient
             LogFile.LogTracing("Force Disconnecting.", LogLvl.LOG_WARNING, Me)
         Else
             LogFile.LogTracing("Disconnecting.", LogLvl.LOG_NOTICE, Me)
+            RaiseEvent Socket_Deconnected()
         End If
-
 
         WatchDog.Stop()
         ' Query_Data("LOGOUT")
-        NDNClient.Disconnect()
-        ' Close_Socket()
-
-        If Not ForceDisconnect Then
-            RaiseEvent Socket_Deconnected()
+        If NDNClient.IsConnected Then
+            NDNClient.Disconnect()
         End If
     End Sub
 

@@ -130,6 +130,7 @@ Public Class UPS_Device
     End Sub
 
     Public Sub InitUPS()
+        LogFile.LogTracing(String.Format("UPS '{0}' is initializing.", Name), LogLvl.LOG_NOTICE, Me)
         ' Dim UPSName = Me.Nut_Config.UPSName
         'If Me.Nut_Socket.Connect() And Me.Nut_Socket.IsConnected Then
         '    LogFile.LogTracing("TCP Socket Created", LogLvl.LOG_NOTICE, Me)

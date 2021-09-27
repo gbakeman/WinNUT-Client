@@ -50,8 +50,6 @@ Public Class UPS_Device
     'Private Status As String
     'Private OutPower As Double
     'Private InputA As Double
-    'Private Low_Batt As Integer
-    'Private Low_Backup As Integer
     'Private LConnect As Boolean = False
     'Private AReconnect As Boolean = False
     'Private MaxRetry As Integer = 30
@@ -66,7 +64,6 @@ Public Class UPS_Device
     'Private ReaderStream As System.IO.StreamReader
     'Private WriterStream As System.IO.StreamWriter
     'Private ShutdownStatus As Boolean = False
-    'Private Follow_FSD As Boolean = False
     'Private Unknown_UPS_Name As Boolean = False
     'Private Invalid_Data As Boolean = False
     'Private Invalid_Auth_Data As Boolean = False

@@ -31,6 +31,11 @@ Public Class WinNUT
     Public Event ReConnected()
     Public Event Disconnected()
 
+    ' Brought over from the UPS object, since they seem to affect WinNUT operation directly. Place somewhere else?
+    Private Follow_FSD As Boolean = False
+    Private Low_Batt As Integer
+    Private Low_Backup As Integer
+
     'Variable used with Toast Functionnality
     Public WithEvents FrmBuild As Update_Gui
     Public ToastPopup As New WinNUT_Client_Common.ToastPopup
@@ -238,6 +243,7 @@ Public Class WinNUT
         'UPS_Device.Battery_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitBatteryCharge")
         'UPS_Device.Backup_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitUPSRemainTime")
         'UPS_Device.UPS_Follow_FSD = WinNUT_Params.Arr_Reg_Key.Item("Follow_FSD")
+        Follow_FSD = Arr_Reg_Key.Item("Follow_FSD")
 
         'Add DialGraph
         With AG_InV
@@ -365,10 +371,6 @@ Public Class WinNUT
         Dim Login = Me.Nut_Config.Login
         Dim Password = Me.Nut_Config.Password
 
-        LogFile.LogTracing(String.Format("Connect To Nut Server: {0}@{1}:{2}, Using Password: {3}",
-                                         Login, Host, Port, Not IsNothing(Password)), LogLvl.LOG_DEBUG, Me,
-                                        String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CONNECTED), Host, Port))
-
         Try
             NUTClient.Connect()
         Catch ex As Exception
@@ -377,6 +379,9 @@ Public Class WinNUT
             Return
         End Try
 
+        LogFile.LogTracing(String.Format("Connect To Nut Server: {0}@{1}:{2}, Using Password: {3}",
+                                         Login, Host, Port, Not IsNothing(Password)), LogLvl.LOG_DEBUG, Me,
+                                        String.Format(WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_CONNECTED), Host, Port))
         UPS_Associate()
     End Sub
 
@@ -921,114 +926,125 @@ Public Class WinNUT
     End Sub
 
     Public Sub WinNUT_PrefsChanged()
-        'LogFile.LogTracing("WinNut Preferences Changed", LogLvl.LOG_NOTICE, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_PREFS))
-        'Dim NeedReconnect As Boolean = False
-        ''If WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect") <> UPS_Device.AutoReconnect Then
-        ''    If WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect") Then
-        ''        UPS_Device.AutoReconnect = True
-        ''    Else
-        ''        UPS_Device.AutoReconnect = False
-        ''    End If
-        ''End If
-        'If UPS_Device.NutHost <> WinNUT_Params.Arr_Reg_Key.Item("ServerAddress") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutHost = WinNUT_Params.Arr_Reg_Key.Item("ServerAddress")
+        LogFile.LogTracing("WinNut Preferences Changed", LogLvl.LOG_NOTICE, Me, WinNUT_Globals.StrLog.Item(AppResxStr.STR_LOG_PREFS))
+        Dim NeedReconnect As Boolean = False
+
+        'If WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect") <> UPS_Device.AutoReconnect Then
+        '    If WinNUT_Params.Arr_Reg_Key.Item("AutoReconnect") Then
+        '        UPS_Device.AutoReconnect = True
+        '    Else
+        '        UPS_Device.AutoReconnect = False
+        '    End If
         'End If
-        'If UPS_Device.NutPort <> WinNUT_Params.Arr_Reg_Key.Item("Port") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutPort = WinNUT_Params.Arr_Reg_Key.Item("Port")
-        'End If
-        'If UPS_Device.NutUPS <> WinNUT_Params.Arr_Reg_Key.Item("UPSName") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutUPS = WinNUT_Params.Arr_Reg_Key.Item("UPSName")
-        'End If
-        'If UPS_Device.NutDelay <> WinNUT_Params.Arr_Reg_Key.Item("Delay") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutDelay = WinNUT_Params.Arr_Reg_Key.Item("Delay")
-        'End If
-        'If UPS_Device.NutLogin <> WinNUT_Params.Arr_Reg_Key.Item("NutLogin") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutLogin = WinNUT_Params.Arr_Reg_Key.Item("NutLogin")
-        'End If
-        'If UPS_Device.NutPassword <> WinNUT_Params.Arr_Reg_Key.Item("NutPassword") Then
-        '    NeedReconnect = True
-        '    UPS_Device.NutPassword = WinNUT_Params.Arr_Reg_Key.Item("NutPassword")
-        'End If
+
+        Nut_Config.AutoReconnect = Arr_Reg_Key.Item("AutoReconnect")
+        Follow_FSD = Arr_Reg_Key.Item("Follow_FSD")
+
+        If Nut_Config.Host <> WinNUT_Params.Arr_Reg_Key.Item("ServerAddress") Then
+            NeedReconnect = True
+            Nut_Config.Host = WinNUT_Params.Arr_Reg_Key.Item("ServerAddress")
+        End If
+        If Nut_Config.Port <> WinNUT_Params.Arr_Reg_Key.Item("Port") Then
+            NeedReconnect = True
+            Nut_Config.Port = WinNUT_Params.Arr_Reg_Key.Item("Port")
+        End If
+        If Nut_Config.UPSName <> WinNUT_Params.Arr_Reg_Key.Item("UPSName") Then
+            NeedReconnect = True
+            Nut_Config.UPSName = WinNUT_Params.Arr_Reg_Key.Item("UPSName")
+        End If
+        If Polling_Interval <> WinNUT_Params.Arr_Reg_Key.Item("Delay") Then
+            NeedReconnect = True
+            Polling_Interval = WinNUT_Params.Arr_Reg_Key.Item("Delay")
+        End If
+        If Nut_Config.Login <> WinNUT_Params.Arr_Reg_Key.Item("NutLogin") Then
+            NeedReconnect = True
+            Nut_Config.Login = WinNUT_Params.Arr_Reg_Key.Item("NutLogin")
+        End If
+        If Nut_Config.Password <> WinNUT_Params.Arr_Reg_Key.Item("NutPassword") Then
+            NeedReconnect = True
+            Nut_Config.Password = WinNUT_Params.Arr_Reg_Key.Item("NutPassword")
+        End If
         'If UPS_Device.UPS_Follow_FSD <> WinNUT_Params.Arr_Reg_Key.Item("Follow_FSD") Then
         '    UPS_Device.UPS_Follow_FSD = WinNUT_Params.Arr_Reg_Key.Item("Follow_FSD")
         'End If
-        'UPS_Device.Battery_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitBatteryCharge")
-        'UPS_Device.Backup_Limit = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitUPSRemainTime")
-        'If NeedReconnect And UPS_Device.IsConnected Then
-        '    LogFile.LogTracing("Connection parameters Changed. Force Disconnect", LogLvl.LOG_DEBUG, Me)
-        '    'UPS_Device.Disconnect(True, True)
-        '    ReInitDisplayValues()
-        '    ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
-        '    LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
-        '    UpdateIcon_NotifyIcon()
-        '    LogFile.LogTracing("New Parameter Applyed. Force Reconnect", LogLvl.LOG_DEBUG, Me)
-        '    UPS_Connect()
-        '    'UPS_Device.Connect()
-        'ElseIf Not UPS_Device.IsConnected Then
-        '    LogFile.LogTracing("New Parameter Applyed. Force Reconnect", LogLvl.LOG_DEBUG, Me)
-        '    'UPS_Device.Connect()
-        '    UPS_Connect()
-        'End If
-        'NeedReconnect = Nothing
-        'With AG_InV
-        '    If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxInputVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")) Then
-        '        LogFile.LogTracing("Parameter Dial Input Voltage Need to be Updated", LogLvl.LOG_DEBUG, Me)
-        '        .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxInputVoltage")
-        '        .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")
-        '        .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
-        '        LogFile.LogTracing("Parameter Dial Input Voltage Updated", LogLvl.LOG_DEBUG, Me)
-        '    End If
-        'End With
-        'With AG_InF
-        '    If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxInputFrequency")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")) Then
-        '        LogFile.LogTracing("Parameter Dial Input Frequency Need to be Updated", LogLvl.LOG_DEBUG, Me)
-        '        .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxInputFrequency")
-        '        .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")
-        '        .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
-        '        LogFile.LogTracing("Parameter Dial Input Frequency Updated", LogLvl.LOG_DEBUG, Me)
-        '    End If
-        'End With
-        'With AG_OutV
-        '    If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxOutputVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")) Then
-        '        LogFile.LogTracing("Parameter Dial Output Voltage Need to be Updated", LogLvl.LOG_DEBUG, Me)
-        '        .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxOutputVoltage")
-        '        .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")
-        '        .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
-        '        LogFile.LogTracing("Parameter Dial Output Voltage Updated", LogLvl.LOG_DEBUG, Me)
-        '    End If
-        'End With
-        'With AG_Load
-        '    If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxUPSLoad")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")) Then
-        '        LogFile.LogTracing("Parameter Dial UPS Load Need to be Updated", LogLvl.LOG_DEBUG, Me)
-        '        .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxUPSLoad")
-        '        .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")
-        '        .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
-        '        LogFile.LogTracing("Parameter Dial UPS Load Updated", LogLvl.LOG_DEBUG, Me)
-        '    End If
-        'End With
-        'With AG_BattV
-        '    If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")) Then
-        '        LogFile.LogTracing("Parameter Dial Voltage Battery Need to be Updated", LogLvl.LOG_DEBUG, Me)
-        '        .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxBattVoltage")
-        '        .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")
-        '        .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
-        '        LogFile.LogTracing("Parameter Dial Voltage Battery Updated", LogLvl.LOG_DEBUG, Me)
-        '    End If
-        'End With
-        'If WinNUT_Params.Arr_Reg_Key.Item("VerifyUpdate") = True Then
-        '    Me.Menu_Help_Sep1.Visible = True
-        '    Me.Menu_Update.Visible = True
-        '    Me.Menu_Update.Visible = Enabled = True
-        'Else
-        '    Me.Menu_Help_Sep1.Visible = False
-        '    Me.Menu_Update.Visible = False
-        '    Me.Menu_Update.Visible = Enabled = False
-        'End If
+        Low_Batt = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitBatteryCharge")
+        Low_Backup = WinNUT_Params.Arr_Reg_Key.Item("ShutdownLimitUPSRemainTime")
+
+        ' Reinitialize server connection if any parameters have changed.
+        If NeedReconnect Then ' And NUTClient.IsConnected
+            LogFile.LogTracing("Connection parameters Changed. Force Disconnect", LogLvl.LOG_DEBUG, Me)
+            ServerDisconnect()
+            NUTClient = New WinNUTClient(Nut_Config, LogFile)
+            'UPS_Device.Disconnect(True, True)
+            ' ReInitDisplayValues()
+            ' ActualAppIconIdx = AppIconIdx.IDX_ICO_OFFLINE
+            ' LogFile.LogTracing("Update Icon", LogLvl.LOG_DEBUG, Me)
+            ' UpdateIcon_NotifyIcon()
+            ' LogFile.LogTracing("New Parameter Applyed. Force Reconnect", LogLvl.LOG_DEBUG, Me)
+            ' UPS_Connect()
+            Server_Connect()
+            'UPS_Device.Connect()
+            'ElseIf Not NUTClient.IsConnected Then
+            '    LogFile.LogTracing("New Parameter Applyed. Force Reconnect", LogLvl.LOG_DEBUG, Me)
+            '    'UPS_Device.Connect()
+            '    ' UPS_Connect()
+            '    Server_Connect()
+        End If
+        ' NeedReconnect = Nothing
+        With AG_InV
+            If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxInputVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")) Then
+                LogFile.LogTracing("Parameter Dial Input Voltage Need to be Updated", LogLvl.LOG_DEBUG, Me)
+                .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxInputVoltage")
+                .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinInputVoltage")
+                .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
+                LogFile.LogTracing("Parameter Dial Input Voltage Updated", LogLvl.LOG_DEBUG, Me)
+            End If
+        End With
+        With AG_InF
+            If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxInputFrequency")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")) Then
+                LogFile.LogTracing("Parameter Dial Input Frequency Need to be Updated", LogLvl.LOG_DEBUG, Me)
+                .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxInputFrequency")
+                .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinInputFrequency")
+                .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
+                LogFile.LogTracing("Parameter Dial Input Frequency Updated", LogLvl.LOG_DEBUG, Me)
+            End If
+        End With
+        With AG_OutV
+            If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxOutputVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")) Then
+                LogFile.LogTracing("Parameter Dial Output Voltage Need to be Updated", LogLvl.LOG_DEBUG, Me)
+                .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxOutputVoltage")
+                .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinOutputVoltage")
+                .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
+                LogFile.LogTracing("Parameter Dial Output Voltage Updated", LogLvl.LOG_DEBUG, Me)
+            End If
+        End With
+        With AG_Load
+            If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MaxUPSLoad")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")) Then
+                LogFile.LogTracing("Parameter Dial UPS Load Need to be Updated", LogLvl.LOG_DEBUG, Me)
+                .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxUPSLoad")
+                .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinUPSLoad")
+                .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
+                LogFile.LogTracing("Parameter Dial UPS Load Updated", LogLvl.LOG_DEBUG, Me)
+            End If
+        End With
+        With AG_BattV
+            If (.MaxValue <> WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")) Or (.MinValue <> WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")) Then
+                LogFile.LogTracing("Parameter Dial Voltage Battery Need to be Updated", LogLvl.LOG_DEBUG, Me)
+                .MaxValue = WinNUT_Params.Arr_Reg_Key.Item("MaxBattVoltage")
+                .MinValue = WinNUT_Params.Arr_Reg_Key.Item("MinBattVoltage")
+                .ScaleLinesMajorStepValue = CInt((.MaxValue - .MinValue) / 5)
+                LogFile.LogTracing("Parameter Dial Voltage Battery Updated", LogLvl.LOG_DEBUG, Me)
+            End If
+        End With
+        If WinNUT_Params.Arr_Reg_Key.Item("VerifyUpdate") = True Then
+            Me.Menu_Help_Sep1.Visible = True
+            Me.Menu_Update.Visible = True
+            Me.Menu_Update.Visible = Enabled = True
+        Else
+            Me.Menu_Help_Sep1.Visible = False
+            Me.Menu_Update.Visible = False
+            Me.Menu_Update.Visible = Enabled = False
+        End If
     End Sub
 
     Private Sub UpdateIcon_NotifyIcon()
